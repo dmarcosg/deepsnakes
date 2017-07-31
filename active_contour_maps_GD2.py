@@ -3,7 +3,7 @@ from scipy import interpolate
 
 
 def active_contour_step(Fu, Fv, du, dv, snake_u, snake_v, alpha, beta,
-                    gamma,max_px_move, delta_s):
+                    kappa, gamma,max_px_move, delta_s):
     """"" Perform one step in the minimization of the snake energy.
     Parameters
     ---------
@@ -25,21 +25,23 @@ def active_contour_step(Fu, Fv, du, dv, snake_u, snake_v, alpha, beta,
     u = np.int32(np.round(snake_u))
     v = np.int32(np.round(snake_v))
 
-
     # Explicit time stepping for image energy minimization:
 
     a = []
     b = []
+    k = []
     fu = []
     fv = []
 
     for i in range(L):
         a.append(alpha[u[i,0],v[i,0]])
         b.append(beta[u[i,0], v[i,0]])
+        k.append(kappa[u[i, 0], v[i, 0]])
         fu.append(Fu[u[i,0], v[i,0]])
         fv.append(Fv[u[i,0], v[i,0]])
     a = np.stack(a)
     b = np.stack(b)
+    k = np.stack(k).reshape([L,1])
     fu = np.reshape(np.stack(fu),u.shape)
     fv = np.reshape(np.stack(fv),v.shape)
     am1 = np.concatenate([a[L-1:L],a[0:L-1]],axis=0)
@@ -64,10 +66,20 @@ def active_contour_step(Fu, Fv, du, dv, snake_u, snake_v, alpha, beta,
     A = -am1dm1  + (a0d0 + am1d0) - a0d1
     B = bm1dm2 - 2*(bm1dm1+b0dm1) + (bm1d0+4*b0d0+b1d0) - 2*(b0d1+b1d1) + b1d2
 
+    n_u = np.concatenate([snake_v[1:L],snake_v[0:1]],axis=0)\
+            - np.concatenate([snake_v[L-1:L],snake_v[0:L-1]],axis=0)
+    n_v = np.concatenate([snake_u[L-1:L],snake_u[0:L-1]],axis=0)\
+            - np.concatenate([snake_u[1:L],snake_u[0:1]],axis=0)
+    norm = np.sqrt(np.power(n_u,2)+np.power(n_v,2))
+    n_u = np.divide(n_u, norm)
+    n_v = np.divide(n_v, norm)
 
     # Movements are capped to max_px_move per iteration:
     du = -max_px_move*np.tanh( (fu + 2*np.matmul(A/delta_s+B/np.square(delta_s),snake_u))*gamma )*0.1 + du*0.9
     dv = -max_px_move*np.tanh( (fv + 2*np.matmul(A/delta_s+B/np.square(delta_s),snake_v))*gamma )*0.1 + dv*0.9
+
+    du += np.multiply(k,n_u)
+    dv += np.multiply(k,n_v)
 
     snake_u += du
     snake_v += dv
@@ -83,8 +95,8 @@ def draw_poly(poly,values,im_shape,total_points):
     by the edges of the polygon (poly). total_points is the maximum number
     of pixels used for the linear interpolation.
     """
-    u = poly[:,1]
-    v = poly[:,0]
+    u = poly[:,0]
+    v = poly[:,1]
     if type(values) is int:
         values = np.ones(np.shape(u)) * values
     [tck, s] = interpolate.splprep([u, v], s=2, k=1, per=1)
@@ -93,7 +105,7 @@ def draw_poly(poly,values,im_shape,total_points):
     intp_values = intp(np.linspace(0, 1, total_points))
     image = np.zeros(im_shape)
     for n in range(len(xi)):
-        image[int(xi[n]), int(yi[n])] = intp_values[n]
+        image[int(xi[n]), int(yi[n])] += intp_values[n]
     return image
 
 def derivatives_poly(poly):
@@ -101,8 +113,8 @@ def derivatives_poly(poly):
     :param poly: the Lx2 polygon array [u,v]
     :return: der1, der1, Lx2 derivatives arrays
     """
-    u = poly[:, 1]
-    v = poly[:, 0]
+    u = poly[:, 0]
+    v = poly[:, 1]
     L = len(u)
     der1_mat = -np.roll(np.eye(L), -1, axis=1) + \
                np.roll(np.eye(L), -1, axis=0)  # first order derivative, central difference

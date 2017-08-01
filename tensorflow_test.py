@@ -37,33 +37,41 @@ def plot_snakes(snake,snake_hist,GT,mapE, mapA, mapB, mapK, grads_arrayE, grads_
     # Plot result
     fig0, (ax) = plt.subplots(ncols=1)
     im = ax.imshow(image[:,:,:,0])
-    ax.plot(GT[:, 1], GT[:, 0], '--b', lw=3)
-    for i in range(len(snake_hist)):
-        ax.plot(snake_hist[i][:, 1], snake_hist[i][:, 0], '-', color=[i / len(snake_hist), 1 - i / len(snake_hist), 0], lw=1)
-    ax.plot(snake[:, 1], snake[:, 0], '--r', lw=3)
+    for i in range(0,len(snake_hist),5):
+        ax.plot(snake_hist[i][:, 1], snake_hist[i][:, 0], '-', color=[1-i / len(snake_hist), 1-i / len(snake_hist), i / len(snake_hist)], lw=1)
+    ax.plot(snake[:, 1], snake[:, 0], '--k', lw=3)
+    ax.plot(GT[:, 1], GT[:, 0], '--r', lw=3)
     plt.colorbar(im, ax=ax)
-    fig0.suptitle('Image, GT (blue) and converged snake (red)', fontsize=20)
+    fig0.suptitle('Image, GT (red) and converged snake (black)', fontsize=20)
 
-    fig1, (ax0, ax1, ax2,ax3) = plt.subplots(ncols=4)
-    im0 = ax0.imshow(mapE[:, :, 0, 0])
-    plt.colorbar(im0, ax=ax0)
-    im1 = ax1.imshow(mapA[:, :, 0, 0])
-    plt.colorbar(im1, ax=ax1)
-    im2 = ax2.imshow(mapB[:, :, 0, 0])
-    plt.colorbar(im2, ax=ax2)
-    im3 = ax3.imshow(mapK[:, :, 0, 0])
-    plt.colorbar(im3, ax=ax3)
+    fig1, ax = plt.subplots(ncols=2,nrows=2)
+    im0 = ax[0,0].imshow(mapE[:, :, 0, 0])
+    plt.colorbar(im0, ax=ax[0,0])
+    ax[0, 0].set_title('D')
+    im1 = ax[0,1].imshow(mapA[:, :, 0, 0])
+    plt.colorbar(im1, ax=ax[0,1])
+    ax[0, 1].set_title('alpha')
+    im2 = ax[1,0].imshow(mapB[:, :, 0, 0])
+    plt.colorbar(im2, ax=ax[1,0])
+    ax[1, 0].set_title('beta')
+    im3 = ax[1,1].imshow(mapK[:, :, 0, 0])
+    plt.colorbar(im3, ax=ax[1,1])
+    ax[1, 1].set_title('kappa')
     fig1.suptitle('Output maps', fontsize=20)
 
-    fig2, (ax0, ax1, ax2,ax3) = plt.subplots(ncols=4)
-    im0 = ax0.imshow(grads_arrayE[:, :, 0, 0])
-    plt.colorbar(im0, ax=ax0)
-    im1 = ax1.imshow(grads_arrayA[:, :, 0, 0])
-    plt.colorbar(im1, ax=ax1)
-    im2 = ax2.imshow(grads_arrayB[:, :, 0, 0])
-    plt.colorbar(im2, ax=ax2)
-    im3 = ax3.imshow(grads_arrayK[:, :, 0, 0])
-    plt.colorbar(im3, ax=ax3)
+    fig2, ax = plt.subplots(ncols=2,nrows=2)
+    im0 = ax[0,0].imshow(grads_arrayE[:, :, 0, 0])
+    plt.colorbar(im0, ax=ax[0,0])
+    ax[0, 0].set_title('D')
+    im1 = ax[0,1].imshow(grads_arrayA[:, :, 0, 0])
+    plt.colorbar(im1, ax=ax[0,1])
+    ax[0, 1].set_title('alpha')
+    im2 = ax[1,0].imshow(grads_arrayB[:, :, 0, 0])
+    plt.colorbar(im2, ax=ax[1,0])
+    ax[1, 0].set_title('beta')
+    im3 = ax[1,1].imshow(grads_arrayK[:, :, 0, 0])
+    plt.colorbar(im3, ax=ax[1,1])
+    ax[1, 1].set_title('kappa')
     fig2.suptitle('Gradient maps', fontsize=20)
 
     plt.show()
@@ -94,7 +102,7 @@ def batch_norm(x):
 
 #Load data
 L = 70
-batch_size = 1;
+batch_size = 1
 csvfile=open('random_rectangles/rects.csv', newline='')
 reader = csv.reader(csvfile)
 images = np.zeros([128,128,3,1000])
@@ -184,7 +192,7 @@ predK = 0.02*tf.reshape(h_fcK,[128,128,1,-1])
 
 
 #Inject the gradients
-optimizer = tf.train.AdamOptimizer(0.001, epsilon=1e-7)
+optimizer = tf.train.AdamOptimizer(0.0003, epsilon=1e-7)
 grad_predE = tf.placeholder(tf.float32, shape=[128, 128, 1, batch_size])
 grad_predA = tf.placeholder(tf.float32, shape=[128, 128, 1, batch_size])
 grad_predB = tf.placeholder(tf.float32, shape=[128, 128, 1, batch_size])
@@ -198,7 +206,7 @@ init = tf.global_variables_initializer()
 sess.run(init)
 
 for epoch in range(1):
-    for i in range(100):
+    for i in range(1000):
         print(i)
         #Do CNN inference
         batch_ind = [i]
@@ -242,7 +250,7 @@ for epoch in range(1):
         grads_arrayB[:,:,0,0] -= (draw_poly(snake, der2, [M, N], 200) - draw_poly(thisGT, der2_GT, [M, N], 200))
         grads_arrayK[:,:,0,0] -= draw_poly(snake,k,[M,N],200)
 
-        if divmod(i,10)[1]==0:
+        if divmod(i,200)[1]==0:
             #plt.imshow(out[:,:,0,0])
             plot_snakes(snake,snake_hist, thisGT, mapE_aug, np.maximum(mapA,0), np.maximum(mapB,0), mapK,\
                         grads_arrayE, grads_arrayA, grads_arrayB, grads_arrayK, batch)

@@ -66,6 +66,7 @@ def active_contour_step(Fu, Fv, du, dv, snake_u, snake_v, alpha, beta,
     A = -am1dm1  + (a0d0 + am1d0) - a0d1
     B = bm1dm2 - 2*(bm1dm1+b0dm1) + (bm1d0+4*b0d0+b1d0) - 2*(b0d1+b1d1) + b1d2
 
+    # Compute normals
     n_u = np.concatenate([snake_v[1:L],snake_v[0:1]],axis=0)\
             - np.concatenate([snake_v[L-1:L],snake_v[0:L-1]],axis=0)
     n_v = np.concatenate([snake_u[L-1:L],snake_u[0:L-1]],axis=0)\
@@ -74,12 +75,67 @@ def active_contour_step(Fu, Fv, du, dv, snake_u, snake_v, alpha, beta,
     n_u = np.divide(n_u, norm)
     n_v = np.divide(n_v, norm)
 
+    #Compute weighted normals
+
+    #Get kappa values between nodes
+    kappa_collection = []
+    s = 10
+    for i in range(L):
+        next_i = i + 1
+        if next_i == L:
+            next_i = 0
+        u_interp = np.round(snake_u[i]+range(s)/(snake_u[next_i]-snake_u[i]))
+        v_interp = np.round(snake_v[i]+range(s)/(snake_v[next_i]-snake_v[i]))
+        kappa = []
+        for j in range(s):
+            kappa.append(kappa[u_interp[j, 0], v_interp[j, 0]])
+        kappa_collection.append(kappa)
+
+    kappa_collection.append(kappa_collection[0])
+
+    #Get the derivative of the balloon energy
+    dEb_du = []
+    dEb_dv = []
+    for i in range(L):
+        val = 0
+        #contribution from the i+1 triangle to dE/du
+        int_end = snake_v[i+1] - snake_v[i]
+        dh = int_end/L
+        for j in range(s):
+            val += j/L*int_end * kappa_collection[i][L-j] * dh
+        #contribution from the i-1 triangle to dE/du
+        int_end = snake_v[i-1] - snake_v[i]
+        dh = int_end/L
+        for j in range(s):
+            val += j/L*int_end * kappa_collection[i][j] * dh
+        dEb_du.append(val)
+
+        val = 0
+        # contribution from the i+1 triangle to dE/dv
+        int_end = snake_u[i + 1] - snake_u[i]
+        dh = int_end / L
+        for j in range(s):
+            val += j / L * int_end * kappa_collection[i][L - j] * dh
+        # contribution from the i-1 triangle to dE/dv
+        int_end = snake_u[i - 1] - snake_u[i]
+        dh = int_end / L
+        for j in range(s):
+            val += j / L * int_end * kappa_collection[i][j] * dh
+        dEb_dv.append(val)
+    dEb_du = np.stack(dEb_du)
+    dEb_dv = np.stack(dEb_dv)
+
+
+
+
     # Movements are capped to max_px_move per iteration:
     du = -max_px_move*np.tanh( (fu + 2*np.matmul(A/delta_s+B/np.square(delta_s),snake_u))*gamma )*0.1 + du*0.9
     dv = -max_px_move*np.tanh( (fv + 2*np.matmul(A/delta_s+B/np.square(delta_s),snake_v))*gamma )*0.1 + dv*0.9
 
-    du += np.multiply(k,n_u)
-    dv += np.multiply(k,n_v)
+    #du += np.multiply(k,n_u)
+    #dv += np.multiply(k,n_v)
+    du += dEb_du
+    dv += dEb_dv
 
     snake_u += du
     snake_v += dv

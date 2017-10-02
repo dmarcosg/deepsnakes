@@ -3,7 +3,7 @@ import scipy.misc
 import numpy as np
 import csv
 import matplotlib.pyplot as plt
-from active_contour_maps_GD2 import active_contour_step, draw_poly,derivatives_poly
+from active_contour_maps_GD_fast import active_contour_step, draw_poly,derivatives_poly,draw_poly_fill
 from scipy import interpolate
 from skimage.filters import gaussian
 import scipy
@@ -256,9 +256,9 @@ for epoch in range(5):
         grads_arrayE[:,:,0,0] -= draw_poly(snake,1,[M,N],200) - draw_poly(thisGT,1,[M,N],200)
         grads_arrayA[:,:,0,0] -= (draw_poly(snake, der1 - np.mean(der1_GT), [M, N], 200))
         grads_arrayB[:,:,0,0] -= (draw_poly(snake, der2, [M, N], 200) - draw_poly(thisGT, der2_GT, [M, N], 200))
-        grads_arrayK[:,:,0,0] -= draw_poly(snake,k,[M,N],200)
+        grads_arrayK[:, :, 0, 0] -= draw_poly_fill(thisGT, [M, N]) - draw_poly_fill(snake, [M, N])
 
-        if divmod(i,5)[1]==0:
+        if divmod(i,99)[1]==0:
             #plt.imshow(out[:,:,0,0])
             plot_snakes(snake, snake_hist, thisGT, mapE_aug, np.maximum(mapA, 0), np.maximum(mapB, 0), mapK, \
                         grads_arrayE, grads_arrayA, grads_arrayB, grads_arrayK, batch, batch_mask)

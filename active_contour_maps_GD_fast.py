@@ -27,20 +27,19 @@ def active_contour_step(Fu, Fv, du, dv, snake_u, snake_v, alpha, beta,
 
     # Explicit time stepping for image energy minimization:
 
-    a = []
-    b = []
-    fu = []
-    fv = []
+    a = np.zeros(L)
+    b = np.zeros(L)
+    fu = np.zeros(L)
+    fv = np.zeros(L)
 
     for i in range(L):
-        a.append(alpha[u[i,0],v[i,0]])
-        b.append(beta[u[i,0], v[i,0]])
-        fu.append(Fu[u[i,0], v[i,0]])
-        fv.append(Fv[u[i,0], v[i,0]])
-    a = np.stack(a)
-    b = np.stack(b)
-    fu = np.reshape(np.stack(fu),u.shape)
-    fv = np.reshape(np.stack(fv),v.shape)
+        a[i] = alpha[u[i,0],v[i,0]]
+        b[i] = beta[u[i,0], v[i,0]]
+        fu[i] = Fu[u[i,0], v[i,0]]
+        fv[i] = Fv[u[i,0], v[i,0]]
+
+    fu = np.reshape(fu,u.shape)
+    fv = np.reshape(fv,v.shape)
     am1 = np.concatenate([a[L-1:L],a[0:L-1]],axis=0)
     a0d0 = np.diag(a)
     am1d0 = np.diag(am1)

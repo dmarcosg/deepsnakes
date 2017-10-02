@@ -108,26 +108,26 @@ def batch_norm(x):
 #Load data
 L = 60
 batch_size = 1
-im_size = 64
-data_path = '/home/diego/PycharmProjects/get_buildings/buildings_osm/single_buildings/'
-csvfile=open(data_path+'building_coords.csv', newline='')
+im_size = 512
+data_path = '/mnt/bighd/Data/Vaihingen/buildings/'
+csvfile=open(data_path+'polygons.csv', newline='')
 reader = csv.reader(csvfile)
-images = np.zeros([im_size,im_size,3,400])
-dists = np.zeros([im_size,im_size,1,400])
-masks = np.zeros([im_size,im_size,1,400])
-GT = np.zeros([L,2,400])
-for i in range(400):
-    poly = np.zeros([5, 2])
+images = np.zeros([im_size,im_size,3,168])
+dists = np.zeros([im_size,im_size,1,168])
+masks = np.zeros([im_size,im_size,1,168])
+GT = np.zeros([L,2,168])
+for i in range(168):
     corners = reader.__next__()
-    for c in range(4):
-        poly[c, 1] = np.float(corners[1+2*c])
-        poly[c, 0] = np.float(corners[2+2*c])
-    poly[4,:] = poly[0,:]
+    num_points = np.int32(corners[0])
+    poly = np.zeros([num_points, 2])
+    for c in range(num_points):
+        poly[c, 0] = np.float(corners[1+2*c])
+        poly[c, 1] = np.float(corners[2+2*c])
     [tck, u] = interpolate.splprep([poly[:, 0], poly[:, 1]], s=2, k=1, per=1)
     [GT[:,0,i], GT[:,1,i]] = interpolate.splev(np.linspace(0, 1, L), tck)
-    this_im  = scipy.misc.imread(data_path+'building_'+str(i)+'.png')
+    this_im  = scipy.misc.imread(data_path+'building_'+str(i+1).zfill(3)+'.tif')
     images[:,:,:,i] = np.float32(this_im)/255
-    img_mask = scipy.misc.imread(data_path+'building_mask_' + str(i) + '.png')/65535
+    img_mask = scipy.misc.imread(data_path+'building_mask_' + str(i+1).zfill(3) + '.tif')/255
     masks[:,:,0,i] = img_mask
     img_dist = scipy.ndimage.morphology.distance_transform_edt(img_mask) + \
                scipy.ndimage.morphology.distance_transform_edt(1 - img_mask)
@@ -145,20 +145,20 @@ x_image = tf.reshape(x, [-1, im_size, im_size, 3])
 y_ = tf.placeholder(tf.float32, shape=GT[:,:,0].shape)
 
 #First conv layer
-W_conv1 = weight_variable([5, 5, 3, 16])
+W_conv1 = weight_variable([3, 3, 3, 16])
 b_conv1 = bias_variable([16])
 h_conv1 = tf.nn.relu(conv2d(x_image, W_conv1) + b_conv1)
 h_pool1 = batch_norm(max_pool_2x2(h_conv1))
 
 
 #Second conv layer
-W_conv2 = weight_variable([5, 5, 16, 32])
+W_conv2 = weight_variable([3, 3, 16, 32])
 b_conv2 = bias_variable([32])
 h_conv2 = tf.nn.relu(conv2d(h_pool1, W_conv2) + b_conv2)
 h_pool2 = batch_norm(max_pool_2x2(h_conv2))
 
 #Third conv layer
-W_conv3 = weight_variable([5, 5, 32, 32])
+W_conv3 = weight_variable([3, 3, 32, 32])
 b_conv3 = bias_variable([32])
 h_conv3 = tf.nn.relu(conv2d(h_pool2, W_conv3) + b_conv3)
 h_pool3 = batch_norm(max_pool_2x2(h_conv3))
@@ -170,7 +170,7 @@ resized_out3 = tf.image.resize_images(h_pool3, [im_size, im_size])
 h_concat = tf.concat([resized_out1,resized_out2,resized_out3],3)
 
 #Forth conv layer
-W_conv4 = weight_variable([5, 5, int(h_concat.shape[3]), 32])
+W_conv4 = weight_variable([3, 3, int(h_concat.shape[3]), 32])
 b_conv4 = bias_variable([32])
 h_conv4 = batch_norm(tf.nn.relu(conv2d(h_concat, W_conv4) + b_conv4))
 
@@ -212,9 +212,9 @@ apply_gradients = optimizer.apply_gradients(zip(grads, tvars))
 init = tf.global_variables_initializer()
 sess.run(init)
 
-for epoch in range(20):
-    for i in range(300):
-        print('epoch: '+str(epoch)+', batch: '+str(i))
+for epoch in range(5):
+    for i in range(100):
+        print(i)
         #Do CNN inference
         batch_ind = [i]
         batch = images[:,:,:,batch_ind]
@@ -229,8 +229,8 @@ for epoch in range(20):
             mapE_aug[:,:,0,j] = mapE[:,:,0,j]+np.maximum(0,20-batch_dists[:,:,0,j])*max_val/50
         #Do snake inference
         s = np.linspace(0, 2 * np.pi, L)
-        init_u = im_size/2 + 10 * np.cos(s)
-        init_v = im_size/2 + 10 * np.sin(s)
+        init_u = 256 + 40 * np.cos(s)
+        init_v = 256 + 40 * np.sin(s)
         init_u = init_u.reshape([L, 1])
         init_v = init_v.reshape([L, 1])
         init_snake = np.array([init_u[:,0],init_v[:,0]]).T
@@ -249,25 +249,26 @@ for epoch in range(20):
         for j in range(L):
             k.append(masks[u[j, 0], v[j, 0],0,i])
         k = np.stack(k).reshape([L, ])*2-1
-        grads_arrayE = np.zeros(mapE.shape) + mapE*0.1
-        grads_arrayA = np.zeros(mapA.shape) + mapA*0.1
-        grads_arrayB = np.zeros(mapB.shape) + mapB*0.1
-        grads_arrayK = np.zeros(mapK.shape) + mapK*0.1
-        grads_arrayE[:,:,0,0] -= draw_poly(snake,1,[M,N],100) - draw_poly(thisGT,1,[M,N],100)
-        grads_arrayA[:,:,0,0] -= (draw_poly(snake, der1 - np.mean(der1_GT), [M, N], 100))
-        grads_arrayB[:,:,0,0] -= (draw_poly(snake, der2, [M, N], 100) - draw_poly(thisGT, der2_GT, [M, N], 100))
-        grads_arrayK[:,:,0,0] -= draw_poly(snake,k,[M,N],100)
+        grads_arrayE = np.zeros(mapE.shape)
+        grads_arrayA = np.zeros(mapA.shape)
+        grads_arrayB = np.zeros(mapB.shape)
+        grads_arrayK = np.zeros(mapK.shape)
+        grads_arrayE[:,:,0,0] -= draw_poly(snake,1,[M,N],200) - draw_poly(thisGT,1,[M,N],200)
+        grads_arrayA[:,:,0,0] -= (draw_poly(snake, der1 - np.mean(der1_GT), [M, N], 200))
+        grads_arrayB[:,:,0,0] -= (draw_poly(snake, der2, [M, N], 200) - draw_poly(thisGT, der2_GT, [M, N], 200))
+        grads_arrayK[:,:,0,0] -= draw_poly(snake,k,[M,N],200)
 
-        if divmod(i,20)[1]==0:
-            plot_snakes(snake,snake_hist, thisGT, mapE_aug, np.maximum(mapA,0), np.maximum(mapB,0), mapK,\
+        if divmod(i,5)[1]==0:
+            #plt.imshow(out[:,:,0,0])
+            plot_snakes(snake, snake_hist, thisGT, mapE_aug, np.maximum(mapA, 0), np.maximum(mapB, 0), mapK, \
                         grads_arrayE, grads_arrayA, grads_arrayB, grads_arrayK, batch, batch_mask)
             plt.show()
         #Apply gradients
         apply_gradients.run(feed_dict={x:batch,grad_predE:grads_arrayE,grad_predA:grads_arrayA,grad_predB:grads_arrayB,grad_predK:grads_arrayK})
 
-plot_snakes(snake,snake_hist, thisGT, mapE, np.maximum(mapA,0), np.maximum(mapB,0), mapK,\
-                    grads_arrayE, grads_arrayA, grads_arrayB, grads_arrayK, batch)
-plt.show()
+#plot_snakes(snake,snake_hist, thisGT, mapE, np.maximum(mapA,0), np.maximum(mapB,0), mapK,\
+#                    grads_arrayE, grads_arrayA, grads_arrayB, grads_arrayK, batch)
+#plt.show()
 
 
 

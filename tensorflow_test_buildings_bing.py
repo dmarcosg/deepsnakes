@@ -109,7 +109,7 @@ def batch_norm(x):
 L = 60
 batch_size = 1
 im_size = 64
-data_path = '/home/diego/PycharmProjects/get_buildings/buildings_osm/single_buildings/'
+data_path = '/home/diego/PycharmProjects/snakes_prj/deepsnakes/single_buildings/'
 csvfile=open(data_path+'building_coords.csv', newline='')
 reader = csv.reader(csvfile)
 images = np.zeros([im_size,im_size,3,400])

@@ -30,19 +30,16 @@ def active_contour_step(Fu, Fv, du, dv, snake_u, snake_v, alpha, beta,
 
     a = []
     b = []
-    k = []
     fu = []
     fv = []
 
     for i in range(L):
         a.append(alpha[u[i,0],v[i,0]])
         b.append(beta[u[i,0], v[i,0]])
-        k.append(kappa[u[i, 0], v[i, 0]])
         fu.append(Fu[u[i,0], v[i,0]])
         fv.append(Fv[u[i,0], v[i,0]])
     a = np.stack(a)
     b = np.stack(b)
-    k = np.stack(k).reshape([L,1])
     fu = np.reshape(np.stack(fu),u.shape)
     fv = np.reshape(np.stack(fv),v.shape)
     am1 = np.concatenate([a[L-1:L],a[0:L-1]],axis=0)

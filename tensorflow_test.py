@@ -3,7 +3,7 @@ import scipy.misc
 import numpy as np
 import csv
 import matplotlib.pyplot as plt
-from active_contour_maps_GD2 import active_contour_step, draw_poly,derivatives_poly
+from active_contour_maps_GD2 import active_contour_step, draw_poly, draw_poly_fill, derivatives_poly
 from scipy import interpolate
 from skimage.filters import gaussian
 import scipy
@@ -12,7 +12,7 @@ def snake_process (mapE, mapA, mapB, mapK, init_snake):
     gamma = 1
     max_px_move = 2
     delta_s = 1
-    maxiter = 500
+    maxiter = 200
 
     for i in range(mapE.shape[3]):
         Du = np.gradient(mapE[:,:,0,i], axis=0)
@@ -205,8 +205,8 @@ apply_gradients = optimizer.apply_gradients(zip(grads, tvars))
 init = tf.global_variables_initializer()
 sess.run(init)
 
-for epoch in range(1):
-    for i in range(1000):
+for epoch in range(3):
+    for i in range(800):
         print(i)
         #Do CNN inference
         batch_ind = [i]
@@ -248,10 +248,9 @@ for epoch in range(1):
         grads_arrayE[:,:,0,0] -= draw_poly(snake,1,[M,N],200) - draw_poly(thisGT,1,[M,N],200)
         grads_arrayA[:,:,0,0] -= (draw_poly(snake, der1 - np.mean(der1_GT), [M, N], 200))
         grads_arrayB[:,:,0,0] -= (draw_poly(snake, der2, [M, N], 200) - draw_poly(thisGT, der2_GT, [M, N], 200))
-        grads_arrayK[:,:,0,0] -= draw_poly(snake,k,[M,N],200)
+        grads_arrayK[:,:,0,0] -= draw_poly_fill(thisGT, [M, N]) - draw_poly_fill(snake, [M, N])
 
-        if divmod(i,200)[1]==0:
-            #plt.imshow(out[:,:,0,0])
+        if divmod(i,400)[1]==0:
             plot_snakes(snake,snake_hist, thisGT, mapE_aug, np.maximum(mapA,0), np.maximum(mapB,0), mapK,\
                         grads_arrayE, grads_arrayA, grads_arrayB, grads_arrayK, batch)
             plt.show()

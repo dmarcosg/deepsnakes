@@ -1,5 +1,6 @@
 import numpy as np
 from scipy import interpolate
+from PIL import Image, ImageDraw
 
 
 def active_contour_step(Fu, Fv, du, dv, snake_u, snake_v, alpha, beta,
@@ -169,6 +170,16 @@ def draw_poly(poly,values,im_shape,total_points):
     for n in range(len(xi)):
         image[int(xi[n]), int(yi[n])] += intp_values[n]
     return image
+
+def draw_poly_fill(poly,im_shape):
+    """Returns a MxN (im_shape) array with 1s in the interior of the polygon
+    defined by (poly) and 0s outside."""
+    u = poly[:, 0]
+    v = poly[:, 1]
+    image = Image.fromarray(np.zeros(im_shape))
+    d = ImageDraw.Draw(image)
+    d.polygon(np.column_stack((v, u)).reshape(-1).tolist(), fill=1, outline=1)
+    return np.array(image)
 
 def derivatives_poly(poly):
     """

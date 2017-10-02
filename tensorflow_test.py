@@ -3,7 +3,7 @@ import scipy.misc
 import numpy as np
 import csv
 import matplotlib.pyplot as plt
-from active_contour_maps_GD2 import active_contour_step, draw_poly, draw_poly_fill, derivatives_poly
+from active_contour_maps_GD_fast import active_contour_step, draw_poly,derivatives_poly,draw_poly_fill
 from scipy import interpolate
 from skimage.filters import gaussian
 import scipy
@@ -129,8 +129,8 @@ for i in range(1000):
 GT = np.minimum(GT,127)
 GT = np.maximum(GT,0)
 
-
-sess = tf.InteractiveSession()
+with tf.device('/gpu:0'):
+    sess = tf.InteractiveSession()
 
 #Input and output
 x = tf.placeholder(tf.float32, shape=[128, 128, 3, batch_size])
@@ -250,6 +250,7 @@ for epoch in range(3):
         grads_arrayB[:,:,0,0] -= (draw_poly(snake, der2, [M, N], 200) - draw_poly(thisGT, der2_GT, [M, N], 200))
         grads_arrayK[:,:,0,0] -= draw_poly_fill(thisGT, [M, N]) - draw_poly_fill(snake, [M, N])
 
+
         if divmod(i,400)[1]==0:
             plot_snakes(snake,snake_hist, thisGT, mapE_aug, np.maximum(mapA,0), np.maximum(mapB,0), mapK,\
                         grads_arrayE, grads_arrayA, grads_arrayB, grads_arrayK, batch)
@@ -257,9 +258,9 @@ for epoch in range(3):
         #Apply gradients
         apply_gradients.run(feed_dict={x:batch,grad_predE:grads_arrayE,grad_predA:grads_arrayA,grad_predB:grads_arrayB,grad_predK:grads_arrayK})
 
-plot_snakes(snake,snake_hist, thisGT, mapE, np.maximum(mapA,0), np.maximum(mapB,0), mapK,\
-                    grads_arrayE, grads_arrayA, grads_arrayB, grads_arrayK, batch)
-plt.show()
+#plot_snakes(snake,snake_hist, thisGT, mapE, np.maximum(mapA,0), np.maximum(mapB,0), mapK,\
+#                    grads_arrayE, grads_arrayA, grads_arrayB, grads_arrayK, batch)
+#plt.show()
 
 
 

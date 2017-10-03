@@ -7,6 +7,7 @@ from active_contour_maps_GD_fast import active_contour_step, draw_poly,derivativ
 from scipy import interpolate
 from skimage.filters import gaussian
 import scipy
+import time
 
 def snake_process (mapE, mapA, mapB, mapK, init_snake):
     gamma = 1
@@ -21,14 +22,11 @@ def snake_process (mapE, mapA, mapB, mapK, init_snake):
         v = init_snake[:,1:2]
         du = np.zeros(u.shape)
         dv = np.zeros(v.shape)
-        snake_hist = []
-        for j in range(maxiter):
-            u, v, du, dv = active_contour_step(Du, Dv, du, dv, u, v,
-                                               mapA[:, :, 0, i], mapB[:,:,0,i],mapK[:,:,0,i],
-                                               gamma, max_px_move, delta_s)
-            snake_hist.append(np.array([u[:,0],v[:,0]]).T)
-
-
+        tic = time.time()
+        u, v, du, dv,snake_hist = active_contour_step(maxiter,Du, Dv, du, dv, u, v,
+                                            mapA[:, :, 0, i], mapB[:,:,0,i],mapK[:,:,0,i],
+                                            gamma, max_px_move, delta_s)
+        print('%.2f' % (time.time() - tic) + ' s snake')
 
     return np.array([u[:,0],v[:,0]]).T,snake_hist
 
@@ -212,7 +210,7 @@ apply_gradients = optimizer.apply_gradients(zip(grads, tvars))
 init = tf.global_variables_initializer()
 sess.run(init)
 
-for epoch in range(5):
+for epoch in range(10):
     for i in range(100):
         print(i)
         #Do CNN inference
@@ -221,7 +219,9 @@ for epoch in range(5):
         batch_mask = masks[:, :, :, batch_ind]
         batch_dists = dists[:, :, :, batch_ind]
         #prediction_np = sess.run(prediction,feed_dict={x:batch})
+        tic = time.time()
         [mapE, mapA, mapB, mapK] = sess.run([predE,predA,predB,predK],feed_dict={x:batch})
+        print('%.2f' % (time.time() - tic) + ' s tf inference')
         mapE_aug = np.zeros(mapE.shape)
         for j in range(mapE.shape[3]):
             max_val = np.amax(np.abs(mapE[:,:,0,j]))
@@ -234,7 +234,7 @@ for epoch in range(5):
         init_u = init_u.reshape([L, 1])
         init_v = init_v.reshape([L, 1])
         init_snake = np.array([init_u[:,0],init_v[:,0]]).T
-        snake,snake_hist = snake_process(mapE_aug, np.maximum(0,mapA), np.maximum(0,mapB), mapK,  init_snake)
+        snake,snake_hist = snake_process(mapE, np.maximum(0,mapA), np.maximum(0,mapB), mapK,  init_snake)
         # Get last layer gradients
         M = mapE.shape[0]
         N = mapE.shape[1]
@@ -258,14 +258,15 @@ for epoch in range(5):
         grads_arrayB[:,:,0,0] -= (draw_poly(snake, der2, [M, N], 200) - draw_poly(thisGT, der2_GT, [M, N], 200))
         grads_arrayK[:, :, 0, 0] -= draw_poly_fill(thisGT, [M, N]) - draw_poly_fill(snake, [M, N])
 
-        if divmod(i,99)[1]==0:
+        if divmod(i,20)[1]==0:
             #plt.imshow(out[:,:,0,0])
-            plot_snakes(snake, snake_hist, thisGT, mapE_aug, np.maximum(mapA, 0), np.maximum(mapB, 0), mapK, \
+            plot_snakes(snake, snake_hist, thisGT, mapE, np.maximum(mapA, 0), np.maximum(mapB, 0), mapK, \
                         grads_arrayE, grads_arrayA, grads_arrayB, grads_arrayK, batch, batch_mask)
             plt.show()
         #Apply gradients
+        tic = time.time()
         apply_gradients.run(feed_dict={x:batch,grad_predE:grads_arrayE,grad_predA:grads_arrayA,grad_predB:grads_arrayB,grad_predK:grads_arrayK})
-
+        print('%.2f' % (time.time() - tic) + ' s apply gradients')
 #plot_snakes(snake,snake_hist, thisGT, mapE, np.maximum(mapA,0), np.maximum(mapB,0), mapK,\
 #                    grads_arrayE, grads_arrayA, grads_arrayB, grads_arrayK, batch)
 #plt.show()

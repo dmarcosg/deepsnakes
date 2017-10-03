@@ -23,8 +23,8 @@ def active_contour_step(Fu, Fv, du, dv, snake_u, snake_v, alpha, beta,
     L = snake_u.shape[0]
     M = Fu.shape[0]
     N = Fu.shape[1]
-    u = np.int32(np.round(snake_u))
-    v = np.int32(np.round(snake_v))
+    u = np.int32(snake_u)
+    v = np.int32(snake_v)
 
     # Explicit time stepping for image energy minimization:
 

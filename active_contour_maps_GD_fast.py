@@ -1,6 +1,6 @@
-import numpy as np
 from scipy import interpolate
 from PIL import Image, ImageDraw
+import numpy as np
 
 def active_contour_step(step_n, Fu, Fv, du, dv, snake_u, snake_v, alpha, beta,
                     kappa, gamma,max_px_move, delta_s):

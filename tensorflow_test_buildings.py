@@ -3,16 +3,19 @@ import scipy.misc
 import numpy as np
 import csv
 import matplotlib.pyplot as plt
-from active_contour_maps_GD_fast import active_contour_step, draw_poly,derivatives_poly,draw_poly_fill
+from active_contour_maps_GD_fast import draw_poly,derivatives_poly,draw_poly_fill
+import snake_inference_fast
 from scipy import interpolate
 from skimage.filters import gaussian
 import scipy
 import time
+import math
+from PIL import Image, ImageOps
 
 def snake_process (mapE, mapA, mapB, mapK, init_snake):
-    gamma = 1
-    max_px_move = 3
-    delta_s = 1
+    gamma = 1.
+    max_px_move = 3.
+    delta_s = 1.
     maxiter = 300
 
     for i in range(mapE.shape[3]):
@@ -23,18 +26,39 @@ def snake_process (mapE, mapA, mapB, mapK, init_snake):
         du = np.zeros(u.shape)
         dv = np.zeros(v.shape)
         tic = time.time()
-        u, v, du, dv,snake_hist = active_contour_step(maxiter,Du, Dv, du, dv, u, v,
+        u, v, du, dv,snake_hist = snake_inference_fast.active_contour_step(maxiter,Du, Dv, du, dv, u, v,
                                             mapA[:, :, 0, i], mapB[:,:,0,i],mapK[:,:,0,i],
                                             gamma, max_px_move, delta_s)
         print('%.2f' % (time.time() - tic) + ' s snake')
 
     return np.array([u[:,0],v[:,0]]).T,snake_hist
 
+def Rotate(img, angle, fill='black',resample='bilinear'):
+    """Rotate the given PIL.Image counter clockwise around its centre by angle degrees.
+    Empty region will be padded with color specified in fill."""
+    img = Image.fromarray(img)
+    theta = math.radians(angle)
+    w, h = img.size
+    diameter = math.sqrt(w * w + h * h)
+    theta_0 = math.atan(float(h) / w)
+    w_new = diameter * max(abs(math.cos(theta-theta_0)), abs(math.cos(theta+theta_0)))
+    h_new = diameter * max(abs(math.sin(theta-theta_0)), abs(math.sin(theta+theta_0)))
+    pad = math.ceil(max(w_new - w, h_new - h) / 2)
+    img = ImageOps.expand(img, border=int(pad), fill=fill)
+    if resample is 'bicubic':
+        img = img.rotate(angle, resample=Image.BICUBIC)
+    elif resample is 'bilinear':
+        img = img.rotate(angle, resample=Image.BILINEAR)
+    elif resample is 'nearest':
+        img = img.rotate(angle, resample=Image.NEAREST)
+    else:
+        print('Dunno what interpolation method ' + resample + ' is.')
+    return np.array(img.crop((pad, pad, w + pad, h + pad)))
 
 def plot_snakes(snake,snake_hist,GT,mapE, mapA, mapB, mapK, grads_arrayE, grads_arrayA, grads_arrayB, grads_arrayK, image, mask):
     # Plot result
     fig0, (ax) = plt.subplots(ncols=1)
-    im = ax.imshow(image[:,:,:,0])
+    im = ax.imshow(scipy.misc.imresize(image[:,:,:,0],mapE[:, :, 0, 0].shape))
     for i in range(0,len(snake_hist),5):
         ax.plot(snake_hist[i][:, 1], snake_hist[i][:, 0], '-', color=[1-i / len(snake_hist), 1-i / len(snake_hist), i / len(snake_hist)], lw=1)
     ax.plot(snake[:, 1], snake[:, 0], '--k', lw=3)
@@ -107,31 +131,27 @@ def batch_norm(x):
 L = 60
 batch_size = 1
 im_size = 512
+out_size = 256
 data_path = '/mnt/bighd/Data/Vaihingen/buildings/'
 csvfile=open(data_path+'polygons.csv', newline='')
 reader = csv.reader(csvfile)
 images = np.zeros([im_size,im_size,3,168])
-dists = np.zeros([im_size,im_size,1,168])
-masks = np.zeros([im_size,im_size,1,168])
+masks = np.zeros([out_size,out_size,1,168])
 GT = np.zeros([L,2,168])
 for i in range(168):
     corners = reader.__next__()
     num_points = np.int32(corners[0])
     poly = np.zeros([num_points, 2])
     for c in range(num_points):
-        poly[c, 0] = np.float(corners[1+2*c])
-        poly[c, 1] = np.float(corners[2+2*c])
+        poly[c, 0] = np.float(corners[1+2*c])*out_size/im_size
+        poly[c, 1] = np.float(corners[2+2*c])*out_size/im_size
     [tck, u] = interpolate.splprep([poly[:, 0], poly[:, 1]], s=2, k=1, per=1)
     [GT[:,0,i], GT[:,1,i]] = interpolate.splev(np.linspace(0, 1, L), tck)
     this_im  = scipy.misc.imread(data_path+'building_'+str(i+1).zfill(3)+'.tif')
     images[:,:,:,i] = np.float32(this_im)/255
     img_mask = scipy.misc.imread(data_path+'building_mask_' + str(i+1).zfill(3) + '.tif')/255
-    masks[:,:,0,i] = img_mask
-    img_dist = scipy.ndimage.morphology.distance_transform_edt(img_mask) + \
-               scipy.ndimage.morphology.distance_transform_edt(1 - img_mask)
-    img_dist = gaussian(img_dist, 10)
-    dists[:,:,0,i] =  img_dist
-GT = np.minimum(GT,im_size-1)
+    masks[:,:,0,i] = scipy.misc.imresize(img_mask,[out_size,out_size])
+GT = np.minimum(GT,out_size-1)
 GT = np.maximum(GT,0)
 
 
@@ -161,47 +181,68 @@ b_conv3 = bias_variable([32])
 h_conv3 = tf.nn.relu(conv2d(h_pool2, W_conv3) + b_conv3)
 h_pool3 = batch_norm(max_pool_2x2(h_conv3))
 
-#Resize and concat
-resized_out1 = tf.image.resize_images(h_pool1, [im_size, im_size])
-resized_out2 = tf.image.resize_images(h_pool2, [im_size, im_size])
-resized_out3 = tf.image.resize_images(h_pool3, [im_size, im_size])
-h_concat = tf.concat([resized_out1,resized_out2,resized_out3],3)
-
 #Forth conv layer
-W_conv4 = weight_variable([3, 3, int(h_concat.shape[3]), 32])
+W_conv4 = weight_variable([3, 3, 32, 32])
 b_conv4 = bias_variable([32])
-h_conv4 = batch_norm(tf.nn.relu(conv2d(h_concat, W_conv4) + b_conv4))
+h_conv4 = tf.nn.relu(conv2d(h_pool3, W_conv4) + b_conv4)
+h_pool4 = batch_norm(max_pool_2x2(h_conv4))
+
+#Fifth conv layer
+W_conv5 = weight_variable([3, 3, 32, 32])
+b_conv5 = bias_variable([32])
+h_conv5 = tf.nn.relu(conv2d(h_pool4, W_conv5) + b_conv5)
+h_pool5 = batch_norm(max_pool_2x2(h_conv5))
+
+#Sixth conv layer
+W_conv6 = weight_variable([3, 3, 32, 32])
+b_conv6 = bias_variable([32])
+h_conv6 = tf.nn.relu(conv2d(h_pool5, W_conv6) + b_conv6)
+h_pool6 = batch_norm(max_pool_2x2(h_conv6))
+
+#Resize and concat
+#resized_out1 = tf.image.resize_images(h_pool1, [im_size, im_size])
+#resized_out2 = tf.image.resize_images(h_pool2, [im_size, im_size])
+resized_out3 = tf.image.resize_images(h_pool3, [out_size, out_size])
+resized_out4 = tf.image.resize_images(h_pool4, [out_size, out_size])
+resized_out5 = tf.image.resize_images(h_pool5, [out_size, out_size])
+resized_out6 = tf.image.resize_images(h_pool6, [out_size, out_size])
+h_concat = tf.concat([resized_out3,resized_out4,resized_out5,resized_out6],3)
+
+#Final conv layer
+W_convf = weight_variable([1, 1, int(h_concat.shape[3]), 32])
+b_convf = bias_variable([32])
+h_convf = batch_norm(tf.nn.relu(conv2d(h_concat, W_convf) + b_convf))
 
 #Predict energy
 W_fcE = weight_variable([1, 1, 32, 1])
 b_fcE = bias_variable([1])
-h_fcE = conv2d(h_conv4, W_fcE) + b_fcE
-predE = tf.reshape(h_fcE,[im_size,im_size,1,-1])
+h_fcE = conv2d(h_convf, W_fcE) + b_fcE
+predE = tf.reshape(h_fcE,[out_size,out_size,1,-1])
 #Predict alpha
 W_fcA = weight_variable([1, 1, 32, 1])
 b_fcA = bias_variable([1])
-h_fcA = conv2d(h_conv4, W_fcA) + b_fcA
+h_fcA = conv2d(h_convf, W_fcA) + b_fcA
 #predA = tf.nn.softplus(tf.reshape(h_fcA,[im_size,im_size,1,-1]))
-predA = tf.reshape(h_fcA,[im_size,im_size,1,-1])
+predA = tf.reshape(h_fcA,[out_size,out_size,1,-1])
 #Predict beta
 W_fcB = weight_variable([1, 1, 32, 1])
 b_fcB = bias_variable([1])
-h_fcB = conv2d(h_conv4, W_fcB) + b_fcB
-predB = tf.reshape(h_fcB,[im_size,im_size,1,-1])
+h_fcB = conv2d(h_convf, W_fcB) + b_fcB
+predB = tf.reshape(h_fcB,[out_size,out_size,1,-1])
 #Predict kappa
 W_fcK = weight_variable([1, 1, 32, 1])
 b_fcK = bias_variable([1])
-h_fcK = conv2d(h_conv4, W_fcK) + b_fcK
-predK = 0.02*tf.reshape(h_fcK,[im_size,im_size,1,-1])
+h_fcK = conv2d(h_convf, W_fcK) + b_fcK
+predK = 0.02*tf.reshape(h_fcK,[out_size,out_size,1,-1])
 
 
 
 #Inject the gradients
-optimizer = tf.train.AdamOptimizer(0.0003, epsilon=1e-7)
-grad_predE = tf.placeholder(tf.float32, shape=[im_size, im_size, 1, batch_size])
-grad_predA = tf.placeholder(tf.float32, shape=[im_size, im_size, 1, batch_size])
-grad_predB = tf.placeholder(tf.float32, shape=[im_size, im_size, 1, batch_size])
-grad_predK = tf.placeholder(tf.float32, shape=[im_size, im_size, 1, batch_size])
+optimizer = tf.train.AdamOptimizer(0.0005, epsilon=1e-7)
+grad_predE = tf.placeholder(tf.float32, shape=[out_size, out_size, 1, batch_size])
+grad_predA = tf.placeholder(tf.float32, shape=[out_size, out_size, 1, batch_size])
+grad_predB = tf.placeholder(tf.float32, shape=[out_size, out_size, 1, batch_size])
+grad_predK = tf.placeholder(tf.float32, shape=[out_size, out_size, 1, batch_size])
 tvars = tf.trainable_variables()
 grads = tf.gradients([predE,predA,predB,predK], tvars, grad_ys = [grad_predE,grad_predA,grad_predB,grad_predK])
 apply_gradients = optimizer.apply_gradients(zip(grads, tvars))
@@ -210,14 +251,13 @@ apply_gradients = optimizer.apply_gradients(zip(grads, tvars))
 init = tf.global_variables_initializer()
 sess.run(init)
 
-for epoch in range(10):
+for epoch in range(30):
     for i in range(100):
         print(i)
         #Do CNN inference
         batch_ind = [i]
         batch = images[:,:,:,batch_ind]
         batch_mask = masks[:, :, :, batch_ind]
-        batch_dists = dists[:, :, :, batch_ind]
         #prediction_np = sess.run(prediction,feed_dict={x:batch})
         tic = time.time()
         [mapE, mapA, mapB, mapK] = sess.run([predE,predA,predB,predK],feed_dict={x:batch})
@@ -226,11 +266,11 @@ for epoch in range(10):
         for j in range(mapE.shape[3]):
             max_val = np.amax(np.abs(mapE[:,:,0,j]))
             #mapE[:,:,0,j] = gaussian(mapE[:,:,0,j]/max_val,3)*max_val
-            mapE_aug[:,:,0,j] = mapE[:,:,0,j]+np.maximum(0,20-batch_dists[:,:,0,j])*max_val/50
+            #mapE_aug[:,:,0,j] = mapE[:,:,0,j]+np.maximum(0,20-batch_dists[:,:,0,j])*max_val/50
         #Do snake inference
         s = np.linspace(0, 2 * np.pi, L)
-        init_u = 256 + 40 * np.cos(s)
-        init_v = 256 + 40 * np.sin(s)
+        init_u = out_size/2 + 40 * np.cos(s)
+        init_v = out_size/2 + 40 * np.sin(s)
         init_u = init_u.reshape([L, 1])
         init_v = init_v.reshape([L, 1])
         init_snake = np.array([init_u[:,0],init_v[:,0]]).T
@@ -242,23 +282,16 @@ for epoch in range(10):
         thisGT = GT[:, :, batch_ind[0]]
         der1_GT, der2_GT = derivatives_poly(thisGT)
 
-        # get the inside-ouside values for the normal force
-        k = []
-        u = np.int32(np.round(snake[:,0:1]))
-        v = np.int32(np.round(snake[:,1:2]))
-        for j in range(L):
-            k.append(masks[u[j, 0], v[j, 0],0,i])
-        k = np.stack(k).reshape([L, ])*2-1
-        grads_arrayE = np.zeros(mapE.shape)
-        grads_arrayA = np.zeros(mapA.shape)
-        grads_arrayB = np.zeros(mapB.shape)
-        grads_arrayK = np.zeros(mapK.shape)
+        grads_arrayE = mapE*0.01
+        grads_arrayA = mapA*0.01
+        grads_arrayB = mapB*0.01
+        grads_arrayK = mapK*0.01
         grads_arrayE[:,:,0,0] -= draw_poly(snake,1,[M,N],200) - draw_poly(thisGT,1,[M,N],200)
         grads_arrayA[:,:,0,0] -= (draw_poly(snake, der1 - np.mean(der1_GT), [M, N], 200))
         grads_arrayB[:,:,0,0] -= (draw_poly(snake, der2, [M, N], 200) - draw_poly(thisGT, der2_GT, [M, N], 200))
         grads_arrayK[:, :, 0, 0] -= draw_poly_fill(thisGT, [M, N]) - draw_poly_fill(snake, [M, N])
 
-        if divmod(i,20)[1]==0:
+        if divmod(i,20)[1]==0 & epoch >= 0:
             #plt.imshow(out[:,:,0,0])
             plot_snakes(snake, snake_hist, thisGT, mapE, np.maximum(mapA, 0), np.maximum(mapB, 0), mapK, \
                         grads_arrayE, grads_arrayA, grads_arrayB, grads_arrayK, batch, batch_mask)

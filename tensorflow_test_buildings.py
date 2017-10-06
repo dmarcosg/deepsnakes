@@ -13,10 +13,10 @@ import math
 from PIL import Image, ImageOps
 
 def snake_process (mapE, mapA, mapB, mapK, init_snake):
-    gamma = 1.
-    max_px_move = 3.
+    gamma = 3
+    max_px_move = 3
     delta_s = 1.
-    maxiter = 300
+    maxiter = 600
 
     for i in range(mapE.shape[3]):
         Du = np.gradient(mapE[:,:,0,i], axis=0)
@@ -150,159 +150,159 @@ for i in range(168):
     this_im  = scipy.misc.imread(data_path+'building_'+str(i+1).zfill(3)+'.tif')
     images[:,:,:,i] = np.float32(this_im)/255
     img_mask = scipy.misc.imread(data_path+'building_mask_' + str(i+1).zfill(3) + '.tif')/255
-    masks[:,:,0,i] = scipy.misc.imresize(img_mask,[out_size,out_size])
+    masks[:,:,0,i] = scipy.misc.imresize(img_mask,[out_size,out_size])/255
 GT = np.minimum(GT,out_size-1)
 GT = np.maximum(GT,0)
 
+with tf.device('/gpu:0'):
 
-sess = tf.InteractiveSession()
+    #Input and output
+    x = tf.placeholder(tf.float32, shape=[im_size, im_size, 3, batch_size])
+    x_image = tf.reshape(x, [-1, im_size, im_size, 3])
+    y_ = tf.placeholder(tf.float32, shape=GT[:,:,0].shape)
 
-#Input and output
-x = tf.placeholder(tf.float32, shape=[im_size, im_size, 3, batch_size])
-x_image = tf.reshape(x, [-1, im_size, im_size, 3])
-y_ = tf.placeholder(tf.float32, shape=GT[:,:,0].shape)
-
-#First conv layer
-W_conv1 = weight_variable([3, 3, 3, 16])
-b_conv1 = bias_variable([16])
-h_conv1 = tf.nn.relu(conv2d(x_image, W_conv1) + b_conv1)
-h_pool1 = batch_norm(max_pool_2x2(h_conv1))
-
-
-#Second conv layer
-W_conv2 = weight_variable([3, 3, 16, 32])
-b_conv2 = bias_variable([32])
-h_conv2 = tf.nn.relu(conv2d(h_pool1, W_conv2) + b_conv2)
-h_pool2 = batch_norm(max_pool_2x2(h_conv2))
-
-#Third conv layer
-W_conv3 = weight_variable([3, 3, 32, 32])
-b_conv3 = bias_variable([32])
-h_conv3 = tf.nn.relu(conv2d(h_pool2, W_conv3) + b_conv3)
-h_pool3 = batch_norm(max_pool_2x2(h_conv3))
-
-#Forth conv layer
-W_conv4 = weight_variable([3, 3, 32, 32])
-b_conv4 = bias_variable([32])
-h_conv4 = tf.nn.relu(conv2d(h_pool3, W_conv4) + b_conv4)
-h_pool4 = batch_norm(max_pool_2x2(h_conv4))
-
-#Fifth conv layer
-W_conv5 = weight_variable([3, 3, 32, 32])
-b_conv5 = bias_variable([32])
-h_conv5 = tf.nn.relu(conv2d(h_pool4, W_conv5) + b_conv5)
-h_pool5 = batch_norm(max_pool_2x2(h_conv5))
-
-#Sixth conv layer
-W_conv6 = weight_variable([3, 3, 32, 32])
-b_conv6 = bias_variable([32])
-h_conv6 = tf.nn.relu(conv2d(h_pool5, W_conv6) + b_conv6)
-h_pool6 = batch_norm(max_pool_2x2(h_conv6))
-
-#Resize and concat
-#resized_out1 = tf.image.resize_images(h_pool1, [im_size, im_size])
-#resized_out2 = tf.image.resize_images(h_pool2, [im_size, im_size])
-resized_out3 = tf.image.resize_images(h_pool3, [out_size, out_size])
-resized_out4 = tf.image.resize_images(h_pool4, [out_size, out_size])
-resized_out5 = tf.image.resize_images(h_pool5, [out_size, out_size])
-resized_out6 = tf.image.resize_images(h_pool6, [out_size, out_size])
-h_concat = tf.concat([resized_out3,resized_out4,resized_out5,resized_out6],3)
-
-#Final conv layer
-W_convf = weight_variable([1, 1, int(h_concat.shape[3]), 32])
-b_convf = bias_variable([32])
-h_convf = batch_norm(tf.nn.relu(conv2d(h_concat, W_convf) + b_convf))
-
-#Predict energy
-W_fcE = weight_variable([1, 1, 32, 1])
-b_fcE = bias_variable([1])
-h_fcE = conv2d(h_convf, W_fcE) + b_fcE
-predE = tf.reshape(h_fcE,[out_size,out_size,1,-1])
-#Predict alpha
-W_fcA = weight_variable([1, 1, 32, 1])
-b_fcA = bias_variable([1])
-h_fcA = conv2d(h_convf, W_fcA) + b_fcA
-#predA = tf.nn.softplus(tf.reshape(h_fcA,[im_size,im_size,1,-1]))
-predA = tf.reshape(h_fcA,[out_size,out_size,1,-1])
-#Predict beta
-W_fcB = weight_variable([1, 1, 32, 1])
-b_fcB = bias_variable([1])
-h_fcB = conv2d(h_convf, W_fcB) + b_fcB
-predB = tf.reshape(h_fcB,[out_size,out_size,1,-1])
-#Predict kappa
-W_fcK = weight_variable([1, 1, 32, 1])
-b_fcK = bias_variable([1])
-h_fcK = conv2d(h_convf, W_fcK) + b_fcK
-predK = 0.02*tf.reshape(h_fcK,[out_size,out_size,1,-1])
+    #First conv layer
+    W_conv1 = weight_variable([3, 3, 3, 16])
+    b_conv1 = bias_variable([16])
+    h_conv1 = tf.nn.relu(conv2d(x_image, W_conv1) + b_conv1)
+    h_pool1 = batch_norm(max_pool_2x2(h_conv1))
 
 
+    #Second conv layer
+    W_conv2 = weight_variable([3, 3, 16, 32])
+    b_conv2 = bias_variable([32])
+    h_conv2 = tf.nn.relu(conv2d(h_pool1, W_conv2) + b_conv2)
+    h_pool2 = batch_norm(max_pool_2x2(h_conv2))
 
-#Inject the gradients
-optimizer = tf.train.AdamOptimizer(0.0005, epsilon=1e-7)
-grad_predE = tf.placeholder(tf.float32, shape=[out_size, out_size, 1, batch_size])
-grad_predA = tf.placeholder(tf.float32, shape=[out_size, out_size, 1, batch_size])
-grad_predB = tf.placeholder(tf.float32, shape=[out_size, out_size, 1, batch_size])
-grad_predK = tf.placeholder(tf.float32, shape=[out_size, out_size, 1, batch_size])
-tvars = tf.trainable_variables()
-grads = tf.gradients([predE,predA,predB,predK], tvars, grad_ys = [grad_predE,grad_predA,grad_predB,grad_predK])
-apply_gradients = optimizer.apply_gradients(zip(grads, tvars))
+    #Third conv layer
+    W_conv3 = weight_variable([3, 3, 32, 32])
+    b_conv3 = bias_variable([32])
+    h_conv3 = tf.nn.relu(conv2d(h_pool2, W_conv3) + b_conv3)
+    h_pool3 = batch_norm(max_pool_2x2(h_conv3))
+
+    #Forth conv layer
+    W_conv4 = weight_variable([3, 3, 32, 32])
+    b_conv4 = bias_variable([32])
+    h_conv4 = tf.nn.relu(conv2d(h_pool3, W_conv4) + b_conv4)
+    h_pool4 = batch_norm(max_pool_2x2(h_conv4))
+
+    #Fifth conv layer
+    W_conv5 = weight_variable([3, 3, 32, 32])
+    b_conv5 = bias_variable([32])
+    h_conv5 = tf.nn.relu(conv2d(h_pool4, W_conv5) + b_conv5)
+    h_pool5 = batch_norm(max_pool_2x2(h_conv5))
+
+    #Sixth conv layer
+    W_conv6 = weight_variable([3, 3, 32, 32])
+    b_conv6 = bias_variable([32])
+    h_conv6 = tf.nn.relu(conv2d(h_pool5, W_conv6) + b_conv6)
+    h_pool6 = batch_norm(max_pool_2x2(h_conv6))
+
+    #Resize and concat
+    #resized_out1 = tf.image.resize_images(h_pool1, [im_size, im_size])
+    #resized_out2 = tf.image.resize_images(h_pool2, [im_size, im_size])
+    resized_out3 = tf.image.resize_images(h_pool3, [out_size, out_size])
+    resized_out4 = tf.image.resize_images(h_pool4, [out_size, out_size])
+    resized_out5 = tf.image.resize_images(h_pool5, [out_size, out_size])
+    resized_out6 = tf.image.resize_images(h_pool6, [out_size, out_size])
+    h_concat = tf.concat([resized_out3,resized_out4,resized_out5,resized_out6],3)
+
+    #Final conv layer
+    W_convf = weight_variable([1, 1, int(h_concat.shape[3]), 32])
+    b_convf = bias_variable([32])
+    h_convf = batch_norm(tf.nn.relu(conv2d(h_concat, W_convf) + b_convf))
+
+    #Predict energy
+    W_fcE = weight_variable([1, 1, 32, 1])
+    b_fcE = bias_variable([1])
+    h_fcE = conv2d(h_convf, W_fcE) + b_fcE
+    predE = tf.reshape(h_fcE,[out_size,out_size,1,-1])
+    #Predict alpha
+    W_fcA = weight_variable([1, 1, 32, 1])
+    b_fcA = bias_variable([1])
+    h_fcA = conv2d(h_convf, W_fcA) + b_fcA
+    #predA = tf.nn.softplus(tf.reshape(h_fcA,[im_size,im_size,1,-1]))
+    predA = tf.reshape(h_fcA,[out_size,out_size,1,-1])
+    #Predict beta
+    W_fcB = weight_variable([1, 1, 32, 1])
+    b_fcB = bias_variable([1])
+    h_fcB = conv2d(h_convf, W_fcB) + b_fcB
+    predB = tf.reshape(h_fcB,[out_size,out_size,1,-1])
+    #Predict kappa
+    W_fcK = weight_variable([1, 1, 32, 1])
+    b_fcK = bias_variable([1])
+    h_fcK = conv2d(h_convf, W_fcK) + b_fcK
+    predK = 0.02*tf.reshape(h_fcK,[out_size,out_size,1,-1])
+
+    #Inject the gradients
+    grad_predE = tf.placeholder(tf.float32, shape=[out_size, out_size, 1, batch_size])
+    grad_predA = tf.placeholder(tf.float32, shape=[out_size, out_size, 1, batch_size])
+    grad_predB = tf.placeholder(tf.float32, shape=[out_size, out_size, 1, batch_size])
+    grad_predK = tf.placeholder(tf.float32, shape=[out_size, out_size, 1, batch_size])
+    tvars = tf.trainable_variables()
+    grads = tf.gradients([predE,predA,predB,predK], tvars, grad_ys = [grad_predE,grad_predA,grad_predB,grad_predK])
+
 
 #Initialize CNN
+optimizer = tf.train.AdamOptimizer(0.001, epsilon=1e-7)
+apply_gradients = optimizer.apply_gradients(zip(grads, tvars))
 init = tf.global_variables_initializer()
-sess.run(init)
+#sess = tf.InteractiveSession()
 
-for epoch in range(30):
-    for i in range(100):
-        print(i)
-        #Do CNN inference
-        batch_ind = [i]
-        batch = images[:,:,:,batch_ind]
-        batch_mask = masks[:, :, :, batch_ind]
-        #prediction_np = sess.run(prediction,feed_dict={x:batch})
-        tic = time.time()
-        [mapE, mapA, mapB, mapK] = sess.run([predE,predA,predB,predK],feed_dict={x:batch})
-        print('%.2f' % (time.time() - tic) + ' s tf inference')
-        mapE_aug = np.zeros(mapE.shape)
-        for j in range(mapE.shape[3]):
-            max_val = np.amax(np.abs(mapE[:,:,0,j]))
-            #mapE[:,:,0,j] = gaussian(mapE[:,:,0,j]/max_val,3)*max_val
-            #mapE_aug[:,:,0,j] = mapE[:,:,0,j]+np.maximum(0,20-batch_dists[:,:,0,j])*max_val/50
-        #Do snake inference
-        s = np.linspace(0, 2 * np.pi, L)
-        init_u = out_size/2 + 40 * np.cos(s)
-        init_v = out_size/2 + 40 * np.sin(s)
-        init_u = init_u.reshape([L, 1])
-        init_v = init_v.reshape([L, 1])
-        init_snake = np.array([init_u[:,0],init_v[:,0]]).T
-        snake,snake_hist = snake_process(mapE, np.maximum(0,mapA), np.maximum(0,mapB), mapK,  init_snake)
-        # Get last layer gradients
-        M = mapE.shape[0]
-        N = mapE.shape[1]
-        der1,der2 = derivatives_poly(snake)
-        thisGT = GT[:, :, batch_ind[0]]
-        der1_GT, der2_GT = derivatives_poly(thisGT)
+with tf.Session(config=tf.ConfigProto(allow_soft_placement=True, log_device_placement=True)) as sess:
+    sess.run(init)
 
-        grads_arrayE = mapE*0.01
-        grads_arrayA = mapA*0.01
-        grads_arrayB = mapB*0.01
-        grads_arrayK = mapK*0.01
-        grads_arrayE[:,:,0,0] -= draw_poly(snake,1,[M,N],200) - draw_poly(thisGT,1,[M,N],200)
-        grads_arrayA[:,:,0,0] -= (draw_poly(snake, der1 - np.mean(der1_GT), [M, N], 200))
-        grads_arrayB[:,:,0,0] -= (draw_poly(snake, der2, [M, N], 200) - draw_poly(thisGT, der2_GT, [M, N], 200))
-        grads_arrayK[:, :, 0, 0] -= draw_poly_fill(thisGT, [M, N]) - draw_poly_fill(snake, [M, N])
+    for epoch in range(30):
+        for i in range(100):
+            print(i)
+            #Do CNN inference
+            batch_ind = [i]
+            batch = images[:,:,:,batch_ind]
+            batch_mask = masks[:, :, :, batch_ind]
+            #prediction_np = sess.run(prediction,feed_dict={x:batch})
+            tic = time.time()
+            [mapE, mapA, mapB, mapK] = sess.run([predE,predA,predB,predK],feed_dict={x:batch})
+            print('%.2f' % (time.time() - tic) + ' s tf inference')
+            mapE_aug = np.zeros(mapE.shape)
+            for j in range(mapK.shape[3]):
+                mapK[:,:,0,j] -= batch_mask[:,:,0,j]*0.03 - 0.03/2
+                #mapE_aug[:,:,0,j] = mapE[:,:,0,j]+np.maximum(0,20-batch_dists[:,:,0,j])*max_val/50
+            #Do snake inference
+            s = np.linspace(0, 2 * np.pi, L)
+            init_u = out_size/2 + 40 * np.cos(s)
+            init_v = out_size/2 + 40 * np.sin(s)
+            init_u = init_u.reshape([L, 1])
+            init_v = init_v.reshape([L, 1])
+            init_snake = np.array([init_u[:,0],init_v[:,0]]).T
+            snake,snake_hist = snake_process(mapE, np.maximum(0,mapA), np.maximum(0,mapB), mapK,  init_snake)
+            # Get last layer gradients
+            M = mapE.shape[0]
+            N = mapE.shape[1]
+            der1,der2 = derivatives_poly(snake)
+            thisGT = GT[:, :, batch_ind[0]]
+            der1_GT, der2_GT = derivatives_poly(thisGT)
 
-        if divmod(i,20)[1]==0 & epoch >= 0:
-            #plt.imshow(out[:,:,0,0])
-            plot_snakes(snake, snake_hist, thisGT, mapE, np.maximum(mapA, 0), np.maximum(mapB, 0), mapK, \
-                        grads_arrayE, grads_arrayA, grads_arrayB, grads_arrayK, batch, batch_mask)
-            plt.show()
-        #Apply gradients
-        tic = time.time()
-        apply_gradients.run(feed_dict={x:batch,grad_predE:grads_arrayE,grad_predA:grads_arrayA,grad_predB:grads_arrayB,grad_predK:grads_arrayK})
-        print('%.2f' % (time.time() - tic) + ' s apply gradients')
-#plot_snakes(snake,snake_hist, thisGT, mapE, np.maximum(mapA,0), np.maximum(mapB,0), mapK,\
-#                    grads_arrayE, grads_arrayA, grads_arrayB, grads_arrayK, batch)
-#plt.show()
+            grads_arrayE = mapE*0.001
+            grads_arrayA = mapA*0.001
+            grads_arrayB = mapB*0.001
+            grads_arrayK = mapK*0.001
+            grads_arrayE[:,:,0,0] -= draw_poly(snake,1,[M,N],200) - draw_poly(thisGT,1,[M,N],200)
+            grads_arrayA[:,:,0,0] -= (draw_poly(snake, der1 - np.mean(der1_GT), [M, N], 200))
+            grads_arrayB[:,:,0,0] -= (draw_poly(snake, der2, [M, N], 200) - draw_poly(thisGT, der2_GT, [M, N], 200))
+            grads_arrayK[:, :, 0, 0] -= draw_poly_fill(thisGT, [M, N]) - draw_poly_fill(snake, [M, N])
+
+            if (divmod(i,10)[1]==0) & (epoch >= 4):
+                #plt.imshow(out[:,:,0,0])
+                plot_snakes(snake, snake_hist, thisGT, mapE, np.maximum(mapA, 0), np.maximum(mapB, 0), mapK, \
+                            grads_arrayE, grads_arrayA, grads_arrayB, grads_arrayK, batch, batch_mask)
+                plt.show()
+            #Apply gradients
+            tic = time.time()
+            apply_gradients.run(feed_dict={x:batch,grad_predE:grads_arrayE,grad_predA:grads_arrayA,grad_predB:grads_arrayB,grad_predK:grads_arrayK})
+            print('%.2f' % (time.time() - tic) + ' s apply gradients')
+    #plot_snakes(snake,snake_hist, thisGT, mapE, np.maximum(mapA,0), np.maximum(mapB,0), mapK,\
+    #                    grads_arrayE, grads_arrayA, grads_arrayB, grads_arrayK, batch)
+    #plt.show()
 
 
 

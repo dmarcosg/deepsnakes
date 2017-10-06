@@ -79,8 +79,8 @@ def active_contour_step(step_n, Fu, Fv, du, dv,
 
 
         # Movements are capped to max_px_move per iteration:
-        du = -max_px_move*np.tanh( (fu - dEb_du.reshape([L,1]) + 2*np.matmul(A/delta_s+B/np.square(delta_s),snake_u))*gamma )*0.1 + du*0.9
-        dv = -max_px_move*np.tanh( (fv - dEb_dv.reshape([L,1]) + 2*np.matmul(A/delta_s+B/np.square(delta_s),snake_v))*gamma )*0.1 + dv*0.9
+        du = -max_px_move*np.tanh( (fu - dEb_du.reshape([L,1]) + 2*np.matmul(A/delta_s+B/np.square(delta_s),snake_u))*gamma )*0.5 + du*0.5
+        dv = -max_px_move*np.tanh( (fv - dEb_dv.reshape([L,1]) + 2*np.matmul(A/delta_s+B/np.square(delta_s),snake_v))*gamma )*0.5 + dv*0.5
 
         #du += dEb_du
         #dv += dEb_dv

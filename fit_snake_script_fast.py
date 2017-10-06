@@ -29,7 +29,7 @@ beta = np.float32(img_beta)*0.001
 filename = 'square_alpha.png'
 img_alpha = io.imread(filename)
 img_alpha = img_alpha[:,:,0]
-kappa = (0.02 - np.float32(img_alpha)*0.0001)*0.4
+kappa = (0.02 - np.float32(img_alpha)*0.0001)*2
 alpha = np.float32(img_alpha)*0.00
 filename = 'square_mask.png'
 img_mask = io.imread(filename)
@@ -40,11 +40,11 @@ img_dist = scipy.ndimage.morphology.distance_transform_edt(img_mask) +\
 img_dist = gaussian(img_dist,10)
 img = img - np.minimum(img_dist,20) * 0
 
-Du = np.gradient(gaussian(img,2),axis=0)
-Dv = np.gradient(gaussian(img,2),axis=1)
+Du = np.gradient(gaussian(img,2),axis=0)*5
+Dv = np.gradient(gaussian(img,2),axis=1)*5
 
 
-L = 60
+L = 260
 s = np.linspace(0, 2*np.pi, L, endpoint=False)
 init_u = 128 + 80*np.cos(s)
 init_v = 128 + 80*np.sin(s)
@@ -55,10 +55,10 @@ u = init_u
 v = init_v
 du = np.zeros(u.shape)
 dv = np.zeros(v.shape)
-gamma  = 3
-max_px_move = 3
+gamma  = 4
+max_px_move = 10
 delta_s = 1
-maxiter = 500
+maxiter = 1500
 
 
 tic = time.time()

@@ -1,4 +1,5 @@
 import numpy as np
+import scipy
 
 def active_contour_step(step_n, Fu, Fv, du, dv,
                     snake_u, snake_v, alpha, beta,
@@ -79,14 +80,29 @@ def active_contour_step(step_n, Fu, Fv, du, dv,
 
 
         # Movements are capped to max_px_move per iteration:
-        du = -max_px_move*np.tanh( (fu - dEb_du.reshape([L,1]) + 2*np.matmul(A/delta_s+B/np.square(delta_s),snake_u))*gamma/max_px_move )*0.5 + du*0.5
-        dv = -max_px_move*np.tanh( (fv - dEb_dv.reshape([L,1]) + 2*np.matmul(A/delta_s+B/np.square(delta_s),snake_v))*gamma/max_px_move )*0.5 + dv*0.5
+        # duB = -max_px_move*np.tanh(2*np.matmul(B/np.square(delta_s),snake_u)/max_px_move)
+        # duA = -max_px_move*np.tanh(2*np.matmul(A/delta_s,snake_u)/max_px_move)
+        # dvB = -max_px_move*np.tanh(2 * np.matmul(B / np.square(delta_s), snake_v)/max_px_move)
+        # dvA = -max_px_move*np.tanh(2 * np.matmul(A / delta_s, snake_v)/max_px_move)
+        # duEb = max_px_move*np.tanh(dEb_du.reshape([L,1])/max_px_move)
+        # dvEb = max_px_move * np.tanh(dEb_dv.reshape([L, 1]) / max_px_move)
+        # duf = -max_px_move * np.tanh(fu / max_px_move)
+        # dvf = -max_px_move * np.tanh(fv / max_px_move)
+        # du = gamma*max_px_move * np.tanh((duB+duA+duEb+duf)/ max_px_move)*0.5 + du*0.5
+        # dv = gamma*max_px_move * np.tanh((dvB + dvA + dvEb + dvf) / max_px_move) * 0.5 + dv * 0.5
 
-        #du += dEb_du
-        #dv += dEb_dv
+        #du = -max_px_move*np.tanh( (fu - dEb_du.reshape([L,1]) + 2*np.matmul(A/delta_s+B/np.square(delta_s),snake_u))*gamma/max_px_move )*0.5 + du*0.5
+        #dv = -max_px_move*np.tanh( (fv - dEb_dv.reshape([L,1]) + 2*np.matmul(A/delta_s+B/np.square(delta_s),snake_v))*gamma/max_px_move )*0.5 + dv*0.5
 
-        snake_u += du
-        snake_v += dv
+        du = -max_px_move*np.tanh( (fu - dEb_du.reshape([L,1]) )*gamma/max_px_move )*0.5 + du*0.5
+        dv = -max_px_move*np.tanh( (fv - dEb_dv.reshape([L,1]) )*gamma/max_px_move )*0.5 + dv*0.5
+
+        #snake_u += du
+        #snake_v += dv
+        #snake_u -= max_px_move*np.tanh(2 * np.matmul(A / delta_s + B / np.square(delta_s), snake_u)*gamma/max_px_move )
+        #snake_v -= max_px_move*np.tanh(2 * np.matmul(A / delta_s + B / np.square(delta_s), snake_v)*gamma/max_px_move )
+        snake_u = np.matmul( np.linalg.inv(np.eye(L,L) + 2*gamma*( A/delta_s+B/np.square(delta_s))),snake_u + gamma*du)
+        snake_v = np.matmul( np.linalg.inv(np.eye(L,L) + 2*gamma*( A/delta_s+B/np.square(delta_s))),snake_v + gamma * dv)
         snake_u = np.minimum(snake_u, np.float32(M)-1)
         snake_v = np.minimum(snake_v, np.float32(N)-1)
         snake_u = np.maximum(snake_u, 1)

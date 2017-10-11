@@ -2,6 +2,7 @@ import tensorflow as tf
 import scipy.misc
 import numpy as np
 import csv
+import os
 import matplotlib.pyplot as plt
 from active_contour_maps_GD_fast import draw_poly,derivatives_poly,draw_poly_fill
 import snake_inference_fast
@@ -107,6 +108,14 @@ def weight_variable(shape):
     initial = tf.truncated_normal(shape, stddev=0.1)
     return tf.Variable(initial)
 
+def gaussian_filter(shape,sigma):
+    x, y = [int(np.floor(edge / 2)) for edge in shape]
+    grid = np.array([[((i ** 2 + j ** 2) / (2.0 * sigma ** 2)) for i in range(-x, x + 1)] for j in range(-y, y + 1)])
+    filt = np.exp(-grid) / (2 * np.pi * sigma ** 2)
+    filt /= np.sum(filt)
+    var = np.zeros((shape[0],shape[1],1,1))
+    var[:,:,0,0] = filt
+    return tf.constant(np.float32(var))
 
 def bias_variable(shape):
     initial = tf.constant(0.1, shape=shape)
@@ -128,7 +137,7 @@ def batch_norm(x):
     return tf.nn.batch_normalization(x, batch_mean, batch_var, beta, scale, 1e-7)
 
 #Load data
-L = 60
+L = 80
 batch_size = 1
 im_size = 512
 out_size = 256
@@ -216,11 +225,14 @@ with tf.device('/gpu:0'):
     W_fcE = weight_variable([1, 1, 32, 1])
     b_fcE = bias_variable([1])
     h_fcE = conv2d(h_convf, W_fcE) + b_fcE
-    predE = tf.reshape(h_fcE,[out_size,out_size,1,-1])
+    G_filt = gaussian_filter((15,15), 2)
+    predE = tf.reshape(conv2d(h_fcE,G_filt), [out_size, out_size, 1, -1])
+
     #Predict alpha
     W_fcA = weight_variable([1, 1, 32, 1])
     b_fcA = bias_variable([1])
     h_fcA = conv2d(h_convf, W_fcA) + b_fcA
+    h_fcA = tf.reduce_mean(h_fcA) + h_fcA*0
     #predA = tf.nn.softplus(tf.reshape(h_fcA,[im_size,im_size,1,-1]))
     predA = tf.reshape(h_fcA,[out_size,out_size,1,-1])
     #Predict beta
@@ -232,7 +244,7 @@ with tf.device('/gpu:0'):
     W_fcK = weight_variable([1, 1, 32, 1])
     b_fcK = bias_variable([1])
     h_fcK = conv2d(h_convf, W_fcK) + b_fcK
-    predK = 0.02*tf.reshape(h_fcK,[out_size,out_size,1,-1])
+    predK = tf.reshape(h_fcK,[out_size,out_size,1,-1])
 
     #Inject the gradients
     grad_predE = tf.placeholder(tf.float32, shape=[out_size, out_size, 1, batch_size])
@@ -242,67 +254,109 @@ with tf.device('/gpu:0'):
     tvars = tf.trainable_variables()
     grads = tf.gradients([predE,predA,predB,predK], tvars, grad_ys = [grad_predE,grad_predA,grad_predB,grad_predK])
 
+#Prepare folder to save network
+start_epoch = 0
+model_path = 'models/vai1/'
+if not os.path.isdir(model_path):
+    os.makedirs(model_path)
+else:
+    modelnames = []
+    modelnames += [each for each in os.listdir(model_path) if each.endswith('.net')]
+    epoch = -1
+    for s in modelnames:
+        epoch = max(int(s.split('-')[-1].split('.')[0]),epoch)
+    start_epoch = epoch + 1
+
+# Add ops to save and restore all the variables.
+saver = tf.train.Saver()
 
 #Initialize CNN
-optimizer = tf.train.AdamOptimizer(0.001, epsilon=1e-7)
+optimizer = tf.train.AdamOptimizer(0.0003, epsilon=1e-7)
 apply_gradients = optimizer.apply_gradients(zip(grads, tvars))
-init = tf.global_variables_initializer()
-#sess = tf.InteractiveSession()
+
+
+
+
+
+def epoch(i,mode):
+    # mode (str): train or test
+    batch_ind = [i]
+    batch = images[:, :, :, batch_ind]
+    batch_mask = masks[:, :, :, batch_ind]
+    ang = np.random.rand() * 360
+    for j in range(len(batch_ind)):
+        for b in range(batch.shape[2]):
+            batch[:, :, b, j] = Rotate(batch[:, :, b, j], ang)
+        batch_mask[:, :, 0, j] = Rotate(batch_mask[:, :, 0, j], ang, resample='nearest')
+    # prediction_np = sess.run(prediction,feed_dict={x:batch})
+    tic = time.time()
+    [mapE, mapA, mapB, mapK] = sess.run([predE, predA, predB, predK], feed_dict={x: batch})
+    print('%.2f' % (time.time() - tic) + ' s tf inference')
+    if mode is 'train':
+        for j in range(mapK.shape[3]):
+            mapK[:, :, 0, j] -= batch_mask[:, :, 0, j] * 0.5 - 0.5 / 2
+        # mapE_aug[:,:,0,j] = mapE[:,:,0,j]+np.maximum(0,20-batch_dists[:,:,0,j])*max_val/50
+    # Do snake inference
+    s = np.linspace(0, 2 * np.pi, L)
+    init_u = out_size / 2 + 40 * np.cos(s)
+    init_v = out_size / 2 + 40 * np.sin(s)
+    init_u = init_u.reshape([L, 1])
+    init_v = init_v.reshape([L, 1])
+    init_snake = np.array([init_u[:, 0], init_v[:, 0]]).T
+    snake, snake_hist = snake_process(mapE, np.maximum(0, mapA), np.maximum(0, mapB), mapK, init_snake)
+    # Get last layer gradients
+    M = mapE.shape[0]
+    N = mapE.shape[1]
+    der1, der2 = derivatives_poly(snake)
+    thisGT = GT[:, :, batch_ind[0]] - out_size / 2
+    R = [[np.cos(ang * np.pi / 180), np.sin(ang * np.pi / 180)],
+         [-np.sin(ang * np.pi / 180), np.cos(ang * np.pi / 180)]]
+    thisGT = np.matmul(thisGT, R)
+    thisGT += out_size / 2
+    der1_GT, der2_GT = derivatives_poly(thisGT)
+
+    grads_arrayE = mapE * 0.05
+    grads_arrayA = mapA * 0.05
+    grads_arrayB = mapB * 0.05
+    grads_arrayK = mapK * 0.05
+    grads_arrayE[:, :, 0, 0] -= draw_poly(snake, 1, [M, N], 200) - draw_poly(thisGT, 1, [M, N], 200)
+    grads_arrayA[:, :, 0, 0] -= (draw_poly(snake, der1 - np.mean(der1_GT), [M, N], 200))
+    grads_arrayB[:, :, 0, 0] -= (draw_poly(snake, der2, [M, N], 200)/5 - draw_poly(thisGT, der2_GT, [M, N], 200))
+    grads_arrayK[:, :, 0, 0] -= draw_poly_fill(thisGT, [M, N]) - draw_poly_fill(snake, [M, N])
+    if mode is 'train':
+        tic = time.time()
+        apply_gradients.run(
+            feed_dict={x: batch, grad_predE: grads_arrayE, grad_predA: grads_arrayA, grad_predB: grads_arrayB,
+                       grad_predK: grads_arrayK})
+        print('%.2f' % (time.time() - tic) + ' s apply gradients')
+    if mode is 'test':
+        plot_snakes(snake, snake_hist, thisGT, mapE, np.maximum(mapA, 0), np.maximum(mapB, 0), mapK, \
+                    grads_arrayE, grads_arrayA, grads_arrayB, grads_arrayK, batch, batch_mask)
+        plt.show()
+
+
 
 with tf.Session(config=tf.ConfigProto(allow_soft_placement=True, log_device_placement=True)) as sess:
+    save_path = tf.train.latest_checkpoint(model_path)
+    init = tf.global_variables_initializer()
     sess.run(init)
+    if save_path is not None:
+        saver.restore(sess,save_path)
+        start_epoch = int(save_path.split('-')[-1].split('.')[0])+1
 
-    for epoch in range(30):
+    for n in range(start_epoch,50):
         for i in range(100):
             print(i)
             #Do CNN inference
-            batch_ind = [i]
-            batch = images[:,:,:,batch_ind]
-            batch_mask = masks[:, :, :, batch_ind]
-            #prediction_np = sess.run(prediction,feed_dict={x:batch})
-            tic = time.time()
-            [mapE, mapA, mapB, mapK] = sess.run([predE,predA,predB,predK],feed_dict={x:batch})
-            print('%.2f' % (time.time() - tic) + ' s tf inference')
-            mapE_aug = np.zeros(mapE.shape)
-            for j in range(mapK.shape[3]):
-                mapK[:,:,0,j] -= batch_mask[:,:,0,j]*0.03 - 0.03/2
-                #mapE_aug[:,:,0,j] = mapE[:,:,0,j]+np.maximum(0,20-batch_dists[:,:,0,j])*max_val/50
-            #Do snake inference
-            s = np.linspace(0, 2 * np.pi, L)
-            init_u = out_size/2 + 40 * np.cos(s)
-            init_v = out_size/2 + 40 * np.sin(s)
-            init_u = init_u.reshape([L, 1])
-            init_v = init_v.reshape([L, 1])
-            init_snake = np.array([init_u[:,0],init_v[:,0]]).T
-            snake,snake_hist = snake_process(mapE, np.maximum(0,mapA), np.maximum(0,mapB), mapK,  init_snake)
-            # Get last layer gradients
-            M = mapE.shape[0]
-            N = mapE.shape[1]
-            der1,der2 = derivatives_poly(snake)
-            thisGT = GT[:, :, batch_ind[0]]
-            der1_GT, der2_GT = derivatives_poly(thisGT)
+            epoch(i,'train')
+        saver.save(sess,model_path+'model', global_step=n)
 
-            grads_arrayE = mapE*0.001
-            grads_arrayA = mapA*0.001
-            grads_arrayB = mapB*0.001
-            grads_arrayK = mapK*0.001
-            grads_arrayE[:,:,0,0] -= draw_poly(snake,1,[M,N],200) - draw_poly(thisGT,1,[M,N],200)
-            grads_arrayA[:,:,0,0] -= (draw_poly(snake, der1 - np.mean(der1_GT), [M, N], 200))
-            grads_arrayB[:,:,0,0] -= (draw_poly(snake, der2, [M, N], 200) - draw_poly(thisGT, der2_GT, [M, N], 200))
-            grads_arrayK[:, :, 0, 0] -= draw_poly_fill(thisGT, [M, N]) - draw_poly_fill(snake, [M, N])
+        if (n >= 30):
+            for i in range(101,168):
+                epoch(i, 'test')
 
-            if (divmod(i,10)[1]==0) & (epoch >= 4):
-                #plt.imshow(out[:,:,0,0])
-                plot_snakes(snake, snake_hist, thisGT, mapE, np.maximum(mapA, 0), np.maximum(mapB, 0), mapK, \
-                            grads_arrayE, grads_arrayA, grads_arrayB, grads_arrayK, batch, batch_mask)
-                plt.show()
             #Apply gradients
-            tic = time.time()
-            apply_gradients.run(feed_dict={x:batch,grad_predE:grads_arrayE,grad_predA:grads_arrayA,grad_predB:grads_arrayB,grad_predK:grads_arrayK})
-            print('%.2f' % (time.time() - tic) + ' s apply gradients')
-    #plot_snakes(snake,snake_hist, thisGT, mapE, np.maximum(mapA,0), np.maximum(mapB,0), mapK,\
-    #                    grads_arrayE, grads_arrayA, grads_arrayB, grads_arrayK, batch)
-    #plt.show()
+
 
 
 

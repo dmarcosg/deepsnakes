@@ -1,5 +1,5 @@
 from scipy import interpolate
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageMath
 import numpy as np
 
 def active_contour_step(step_n, Fu, Fv, du, dv, snake_u, snake_v, alpha, beta,
@@ -147,12 +147,14 @@ def draw_poly(poly,values,im_shape,total_points):
     u = poly[:,0]
     v = poly[:,1]
     image = Image.fromarray(np.zeros(im_shape))
+    image2 = Image.fromarray(np.zeros(im_shape))
     d = ImageDraw.Draw(image)
     if type(values) is int:
         values = np.ones(np.shape(u)) * values
     for n in range(len(poly)):
         d.ellipse([(v[n]-5,u[n]-5),(v[n]+5,u[n]+5)], fill=values[n])
-    return np.array(image)
+        image2 = ImageMath.eval("convert(max(a, b), 'F')", a=image, b=image2)
+    return np.array(image2)
 
 def derivatives_poly(poly):
     """

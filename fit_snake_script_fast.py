@@ -4,7 +4,7 @@ from skimage import io
 from skimage.filters import gaussian
 import scipy
 #from skimage.segmentation import active_contour
-import snake_inference_fast
+import snake_inference_fast as snake
 import time
 
 
@@ -21,16 +21,16 @@ new_scipy = scipy_version[0] > 0 or \
 filename = 'square_energy.png'
 img = io.imread(filename)
 img = img[:,:,0]
-img = np.float32(img)*0.1
+img = np.float32(img)*0.0
 filename = 'square_corners.png'
 img_beta = io.imread(filename)
 img_beta = img_beta[:,:,0]
-beta = np.float32(img_beta)*1.1
+beta = np.float32(img_beta)*0
 filename = 'square_alpha.png'
 img_alpha = io.imread(filename)
 img_alpha = img_alpha[:,:,0]
-kappa = (0.02 - np.float32(img_alpha)*0.0001)*500
-alpha = np.float32(img_alpha)*0.001
+kappa = (0.02 - np.float32(img_alpha)*0.0001)*0+0.1
+alpha = np.float32(img_alpha)*0.00
 filename = 'square_mask.png'
 img_mask = io.imread(filename)
 img_mask = img_mask[:,:,0]
@@ -46,8 +46,8 @@ Dv = np.gradient(gaussian(img,2),axis=1)*5
 
 L = 60
 s = np.linspace(0, 2*np.pi, L, endpoint=False)
-init_u = 128 + 80*np.cos(s)
-init_v = 128 + 80*np.sin(s)
+init_u = 128 + 8*np.cos(s)
+init_v = 128 + 8*np.sin(s)
 init_u = init_u.reshape([L,1])
 init_v = init_v.reshape([L,1])
 
@@ -63,7 +63,7 @@ maxiter = 1500
 
 tic = time.time()
 u, v, du, dv, snake_hist = \
-    snake_inference_fast.active_contour_step(maxiter, Du, Dv, du, dv, u, v,
+    snake.active_contour_step(maxiter, Du, Dv, du, dv, u, v,
     alpha, beta, kappa,
     gamma, max_px_move, delta_s)
 print('%.2f' % (time.time() - tic) + ' s snake')

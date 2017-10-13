@@ -74,9 +74,9 @@ def active_contour_step(step_n, Fu, Fv, du, dv,
         int_ends_v_prev = s2 * (snake_v[np.roll(np.arange(L), 1)] - snake_v)  # snake_v[prev_i] - snake_v[i]
         # contribution from the i+1 triangles to dE/du
         dEb_du = np.sum(js*kappa_collection[:, np.arange(s - 1, -1, -1)],axis=1) * int_ends_v_next.squeeze()
-        dEb_du -= np.sum(js*kappa_collection[:, js - 1],axis=1) * int_ends_v_prev.squeeze()
+        dEb_du -= np.sum(js*kappa_collection,axis=1) * int_ends_v_prev.squeeze()
         dEb_dv = -np.sum(js * kappa_collection[np.roll(np.arange(L), 1),:][:, np.arange(s - 1, -1, -1)], axis=1) * int_ends_u_next.squeeze()
-        dEb_dv += np.sum(js * kappa_collection[np.roll(np.arange(L), 1),:][:, js - 1], axis=1) * int_ends_u_prev.squeeze()
+        dEb_dv += np.sum(js * kappa_collection[np.roll(np.arange(L), 1),:], axis=1) * int_ends_u_prev.squeeze()
 
 
         # Movements are capped to max_px_move per iteration:

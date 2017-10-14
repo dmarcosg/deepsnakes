@@ -63,7 +63,7 @@ dv = np.zeros([L, 1])
 snake_hist = []
 snake_hist.append(np.array([u[:, 0], v[:, 0]]).T)
 tic = time.time()
-for i in range(600):
+for i in range(200):
     u, v, du, dv = sess.run([tf_u2,tf_v2,tf_du2,tf_dv2],feed_dict={tf_Du:Du,tf_Dv:Dv,
                                 tf_u:u,tf_v:v, tf_du:du, tf_dv:dv,
                                 tf_alpha:img_alpha,tf_beta:img_beta,tf_kappa:img_kappa})

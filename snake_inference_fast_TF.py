@@ -17,7 +17,6 @@ def active_contour_step(Fu, Fv, du, dv, snake_u, snake_v, alpha, beta,kappa,
     fv = tf.gather(tf.reshape(Fv, tf.TensorShape([M * N])), u * M + v)
     a = tf.gather(tf.reshape(alpha, tf.TensorShape([M * N])), u * M + v)
     b = tf.gather(tf.reshape(beta, tf.TensorShape([M * N])), u * M + v)
-    k = tf.gather(tf.reshape(kappa, tf.TensorShape([M * N])), u * M + v)
     a = tf.squeeze(a)
     b = tf.squeeze(b)
     am1 = tf.concat([a[L-1:L],a[0:L-1]],0)

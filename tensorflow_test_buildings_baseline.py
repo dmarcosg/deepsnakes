@@ -11,7 +11,8 @@ from scipy import interpolate
 from skimage.filters import gaussian
 import scipy
 import time
-
+import math
+from PIL import Image, ImageOps
 from tensorflow.python.client import timeline
 
 def snake_process (mapE, mapA, mapB, mapK, init_snake):
@@ -60,7 +61,6 @@ def gaussian_filter(shape,sigma):
     var[:,:,0,0] = filt
     return tf.constant(np.float32(var))
 
-
 def bias_variable(shape):
     initial = tf.constant(0.1, shape=shape)
     return tf.Variable(initial)
@@ -81,37 +81,31 @@ def batch_norm(x):
     return tf.nn.batch_normalization(x, batch_mean, batch_var, beta, scale, 1e-7)
 
 #Load data
-L = 20
-batch_size = 1
-im_size = 64
-out_size = 64
-data_path = '/home/diego/PycharmProjects/snakes_prj/deepsnakes/single_buildings/'
-csvfile=open(data_path+'building_coords.csv', newline='')
+L = 80
+batch_size = 2
+im_size = 512
+out_size = 256
+data_path = '/mnt/bighd/Data/Vaihingen/buildings/'
+csvfile=open(data_path+'polygons.csv', newline='')
 reader = csv.reader(csvfile)
-images = np.zeros([im_size,im_size,3,400])
-dists = np.zeros([im_size,im_size,1,400])
-masks = np.zeros([im_size,im_size,1,400])
-GT = np.zeros([L,2,400])
-for i in range(400):
-    poly = np.zeros([5, 2])
+images = np.zeros([im_size,im_size,3,168])
+masks = np.zeros([out_size,out_size,1,168])
+GT = np.zeros([L,2,168])
+for i in range(168):
     corners = reader.__next__()
-    for c in range(4):
-        poly[c, 1] = np.float(corners[1+2*c])
-        poly[c, 0] = np.float(corners[2+2*c])
-    poly[4,:] = poly[0,:]
+    num_points = np.int32(corners[0])
+    poly = np.zeros([num_points, 2])
+    for c in range(num_points):
+        poly[c, 0] = np.float(corners[1+2*c])*out_size/im_size
+        poly[c, 1] = np.float(corners[2+2*c])*out_size/im_size
     [tck, u] = interpolate.splprep([poly[:, 0], poly[:, 1]], s=2, k=1, per=1)
     [GT[:,0,i], GT[:,1,i]] = interpolate.splev(np.linspace(0, 1, L), tck)
-    this_im  = scipy.misc.imread(data_path+'building_'+str(i)+'.png')
+    this_im  = scipy.misc.imread(data_path+'building_'+str(i+1).zfill(3)+'.tif')
     images[:,:,:,i] = np.float32(this_im)/255
-    img_mask = scipy.misc.imread(data_path+'building_mask_' + str(i) + '.png')/65535
-    masks[:,:,0,i] = img_mask
-    img_dist = scipy.ndimage.morphology.distance_transform_edt(img_mask) + \
-               scipy.ndimage.morphology.distance_transform_edt(1 - img_mask)
-    img_dist = gaussian(img_dist, 10)
-    dists[:,:,0,i] =  img_dist
-GT = np.minimum(GT,im_size-1)
+    img_mask = scipy.misc.imread(data_path+'building_mask_' + str(i+1).zfill(3) + '.tif')/255
+    masks[:,:,0,i] = scipy.misc.imresize(img_mask,[out_size,out_size])/255
+GT = np.minimum(GT,out_size-1)
 GT = np.maximum(GT,0)
-
 
 with tf.device('/gpu:0'):
 
@@ -139,11 +133,32 @@ with tf.device('/gpu:0'):
     h_conv3 = tf.nn.relu(conv2d(h_pool2, W_conv3) + b_conv3)
     h_pool3 = batch_norm(max_pool_2x2(h_conv3))
 
+    #Forth conv layer
+    W_conv4 = weight_variable([3, 3, 32, 32])
+    b_conv4 = bias_variable([32])
+    h_conv4 = tf.nn.relu(conv2d(h_pool3, W_conv4) + b_conv4)
+    h_pool4 = batch_norm(max_pool_2x2(h_conv4))
+
+    #Fifth conv layer
+    W_conv5 = weight_variable([3, 3, 32, 32])
+    b_conv5 = bias_variable([32])
+    h_conv5 = tf.nn.relu(conv2d(h_pool4, W_conv5) + b_conv5)
+    h_pool5 = batch_norm(max_pool_2x2(h_conv5))
+
+    #Sixth conv layer
+    W_conv6 = weight_variable([3, 3, 32, 32])
+    b_conv6 = bias_variable([32])
+    h_conv6 = tf.nn.relu(conv2d(h_pool5, W_conv6) + b_conv6)
+    h_pool6 = batch_norm(max_pool_2x2(h_conv6))
+
     #Resize and concat
-    resized_out1 = tf.image.resize_images(h_pool1, [im_size, im_size])
-    resized_out2 = tf.image.resize_images(h_pool2, [im_size, im_size])
+    #resized_out1 = tf.image.resize_images(h_pool1, [im_size, im_size])
+    #resized_out2 = tf.image.resize_images(h_pool2, [im_size, im_size])
     resized_out3 = tf.image.resize_images(h_pool3, [out_size, out_size])
-    h_concat = tf.concat([resized_out1,resized_out2,resized_out3],3)
+    resized_out4 = tf.image.resize_images(h_pool4, [out_size, out_size])
+    resized_out5 = tf.image.resize_images(h_pool5, [out_size, out_size])
+    resized_out6 = tf.image.resize_images(h_pool6, [out_size, out_size])
+    h_concat = tf.concat([resized_out3,resized_out4,resized_out5,resized_out6],3)
 
     #Final conv layer
     W_convf = weight_variable([1, 1, int(h_concat.shape[3]), 32])
@@ -185,7 +200,7 @@ with tf.device('/gpu:0'):
 
 #Prepare folder to save network
 start_epoch = 0
-model_path = 'models/bing1/'
+model_path = 'models/vai1/'
 if not os.path.isdir(model_path):
     os.makedirs(model_path)
 else:
@@ -230,17 +245,26 @@ with tf.device('/cpu:0'):
 
 def epoch(i,mode):
     # mode (str): train or test
-    batch_ind = [i]
+    batch_ind = np.arange(i,i+batch_size)
     batch = images[:, :, :, batch_ind]
     batch_mask = masks[:, :, :, batch_ind]
-    ang = np.random.rand() * 360
-    for j in range(len(batch_ind)):
-        for b in range(batch.shape[2]):
-            batch[:, :, b, j] = imrotate(batch[:, :, b, j], ang)
-        batch_mask[:, :, 0, j] = imrotate(batch_mask[:, :, 0, j], ang, resample='nearest')
+    thisGT = GT[:, :, batch_ind[0]]
+    if mode is 'train':
+        ang = np.random.rand() * 360
+        for j in range(len(batch_ind)):
+            for b in range(batch.shape[2]):
+                batch[:, :, b, j] = imrotate(batch[:, :, b, j], ang)
+            batch_mask[:, :, 0, j] = imrotate(batch_mask[:, :, 0, j], ang, resample='nearest')
+        R = [[np.cos(ang * np.pi / 180), np.sin(ang * np.pi / 180)],
+             [-np.sin(ang * np.pi / 180), np.cos(ang * np.pi / 180)]]
+        thisGT -= out_size / 2
+        thisGT = np.matmul(thisGT, R)
+        thisGT += out_size / 2
     # prediction_np = sess.run(prediction,feed_dict={x:batch})
     tic = time.time()
     [mapE, mapA, mapB, mapK] = sess.run([predE, predA, predB, predK], feed_dict={x: batch})
+    mapA = np.maximum(0, mapA)
+    mapB = np.maximum(0, mapB)
     #print('%.2f' % (time.time() - tic) + ' s tf inference')
     if mode is 'train':
         for j in range(mapK.shape[3]):
@@ -248,37 +272,35 @@ def epoch(i,mode):
         # mapE_aug[:,:,0,j] = mapE[:,:,0,j]+np.maximum(0,20-batch_dists[:,:,0,j])*max_val/50
     # Do snake inference
     s = np.linspace(0, 2 * np.pi, L)
-    init_u = out_size / 2 + 5 * np.cos(s)
-    init_v = out_size / 2 + 5 * np.sin(s)
+    init_u = out_size / 2 + 40 * np.cos(s)
+    init_v = out_size / 2 + 40 * np.sin(s)
     init_u = init_u.reshape([L, 1])
     init_v = init_v.reshape([L, 1])
     init_snake = np.array([init_u[:, 0], init_v[:, 0]]).T
-    snake, snake_hist = snake_process(mapE, 0.1+0*np.maximum(0, mapA), np.maximum(0, mapB), mapK, init_snake)
-    # Get last layer gradients
-    M = mapE.shape[0]
-    N = mapE.shape[1]
-    der1, der2 = derivatives_poly(snake)
-    thisGT = GT[:, :, batch_ind[0]] - out_size / 2
-    R = [[np.cos(ang * np.pi / 180), np.sin(ang * np.pi / 180)],
-         [-np.sin(ang * np.pi / 180), np.cos(ang * np.pi / 180)]]
-    thisGT = np.matmul(thisGT, R)
-    thisGT += out_size / 2
-    der1_GT, der2_GT = derivatives_poly(thisGT)
+    for j in range(batch_size):
+        snake, snake_hist = snake_process(mapE, 0.1+0*mapA, mapB, mapK, init_snake)
+        # Get last layer gradients
+        M = mapE.shape[0]
+        N = mapE.shape[1]
+        der1, der2 = derivatives_poly(snake)
 
-    grads_arrayE = mapE * 0.05
-    grads_arrayA = mapA * 0.5
-    grads_arrayB = mapB * 0.05
-    grads_arrayK = mapK * 0.05
-    grads_arrayE[:, :, 0, 0] -= draw_poly(snake, 1, [M, N],2) - draw_poly(thisGT, 1, [M, N],2)
-    grads_arrayA[:, :, 0, 0] -= (np.mean(der1) - np.mean(der1_GT))
-    grads_arrayB[:, :, 0, 0] -= (draw_poly(snake, der2, [M, N],2) - draw_poly(thisGT, der2_GT, [M, N],2))
-    mask_gt = draw_poly_fill(thisGT, [M, N])
-    mask_snake = draw_poly_fill(snake, [M, N])
-    grads_arrayK[:, :, 0, 0] -= mask_gt - mask_snake
 
-    intersection = (mask_gt+mask_snake) == 2
-    union = (mask_gt + mask_snake) >= 1
-    iou = np.sum(intersection) / np.sum(union)
+        der1_GT, der2_GT = derivatives_poly(thisGT)
+
+        grads_arrayE = mapE * 0.05
+        grads_arrayA = mapA * 0.5
+        grads_arrayB = mapB * 0.05
+        grads_arrayK = mapK * 0.05
+        grads_arrayE[:, :, 0, 0] -= draw_poly(snake, 1, [M, N],2) - draw_poly(thisGT, 1, [M, N],2)
+        grads_arrayA[:, :, 0, 0] -= (np.mean(der1) - np.mean(der1_GT))
+        grads_arrayB[:, :, 0, 0] -= (draw_poly(snake, der2, [M, N],2) - draw_poly(thisGT, der2_GT, [M, N],2))
+        mask_gt = draw_poly_fill(thisGT, [M, N])
+        mask_snake = draw_poly_fill(snake, [M, N])
+        grads_arrayK[:, :, 0, 0] -= mask_gt - mask_snake
+
+        intersection = (mask_gt+mask_snake) == 2
+        union = (mask_gt + mask_snake) >= 1
+        iou = np.sum(intersection) / np.sum(union)
     if mode is 'train':
         tic = time.time()
         apply_gradients.run(
@@ -289,8 +311,8 @@ def epoch(i,mode):
         iou_train[len(iou_train)-1] += iou
     if mode is 'test':
         #print('IoU = %.2f' % (iou))
-        #plot_snakes(snake, snake_hist, thisGT, mapE, np.maximum(mapA, 0), np.maximum(mapB, 0), mapK, \
-        #            grads_arrayE, grads_arrayA, grads_arrayB, grads_arrayK, batch, batch_mask)
+        plot_snakes(snake, snake_hist, thisGT, mapE, np.maximum(mapA, 0), np.maximum(mapB, 0), mapK, \
+                    grads_arrayE, grads_arrayA, grads_arrayB, grads_arrayK, batch, batch_mask)
         #plt.show()
         iou_test[len(iou_test)-1] += iou
 
@@ -309,19 +331,24 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True,log_device_place
     for n in range(start_epoch,150):
         iou_test.append(0)
         iou_train.append(0)
-        for i in range(300):
+        for i in range(0,100,batch_size):
             #print(i)
             #Do CNN inference
             epoch(i,'train')
-        iou_train[len(iou_train)-1] /= 300
+        iou_train[len(iou_train)-1] /= 100
         print('Train. Epoch ' + str(n) + '. IoU = %.2f' % (iou_train[len(iou_train)-1]))
         saver.save(sess,model_path+'model', global_step=n)
 
         if (n >= 0):
-            for i in range(301,400):
+            for i in range(101,168):
                 epoch(i, 'test')
-            iou_test[len(iou_test)-1] /= 100
+            iou_test[len(iou_test)-1] /= 68
             print('Test. Epoch ' + str(n) + '. IoU = %.2f' % (iou_test[len(iou_test)-1]))
+
+
+
+
+
 
 
 

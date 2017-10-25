@@ -11,38 +11,7 @@ from scipy import interpolate
 from skimage.filters import gaussian
 import scipy
 import time
-import math
-from PIL import Image, ImageOps
-from tensorflow.python.client import timeline
-
-def snake_process (mapE, mapA, mapB, mapK, init_snake):
-    run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
-    run_metadata = tf.RunMetadata()
-
-    for i in range(mapE.shape[3]):
-        Du = np.gradient(mapE[:,:,0,i], axis=0)
-        Dv = np.gradient(mapE[:,:,0,i], axis=1)
-        u = init_snake[:,0:1]
-        v = init_snake[:,1:2]
-        du = np.zeros(u.shape)
-        dv = np.zeros(v.shape)
-        snake_hist = []
-        snake_hist.append(np.array([u[:, 0], v[:, 0]]).T)
-        tic = time.time()
-        for j in range(1):
-            u, v, du, dv = sess2.run([tf_u, tf_v, tf_du, tf_dv], feed_dict={tf_Du: Du, tf_Dv: Dv,
-                                                                               tf_u0: u, tf_v0: v, tf_du0: du, tf_dv0: dv,
-                                                                               tf_alpha: mapA[:,:,0,i], tf_beta: mapB[:,:,0,i],
-                                                                               tf_kappa: mapK[:,:,0,i]}) #,options=run_options, run_metadata=run_metadata
-            snake_hist.append(np.array([u[:, 0], v[:, 0]]).T)
-            # Create the Timeline object, and write it to a json
-            tl = timeline.Timeline(run_metadata.step_stats)
-            ctf = tl.generate_chrome_trace_format()
-            with open('timeline.json', 'w') as f:
-                f.write(ctf)
-        #print('%.2f' % (time.time() - tic) + ' s snake')
-
-    return np.array([u[:,0],v[:,0]]).T,snake_hist
+import skimage.morphology
 
 
 
@@ -81,43 +50,35 @@ def batch_norm(x):
     return tf.nn.batch_normalization(x, batch_mean, batch_var, beta, scale, 1e-7)
 
 #Load data
-L = 80
-batch_size = 2
-im_size = 512
-out_size = 256
-data_path = '/mnt/bighd/Data/Vaihingen/buildings/'
-csvfile=open(data_path+'polygons.csv', newline='')
-reader = csv.reader(csvfile)
-images = np.zeros([im_size,im_size,3,168])
-masks = np.zeros([out_size,out_size,1,168])
-GT = np.zeros([L,2,168])
-for i in range(168):
-    corners = reader.__next__()
-    num_points = np.int32(corners[0])
-    poly = np.zeros([num_points, 2])
-    for c in range(num_points):
-        poly[c, 0] = np.float(corners[1+2*c])*out_size/im_size
-        poly[c, 1] = np.float(corners[2+2*c])*out_size/im_size
-    [tck, u] = interpolate.splprep([poly[:, 0], poly[:, 1]], s=2, k=1, per=1)
-    [GT[:,0,i], GT[:,1,i]] = interpolate.splev(np.linspace(0, 1, L), tck)
-    this_im  = scipy.misc.imread(data_path+'building_'+str(i+1).zfill(3)+'.tif')
-    images[:,:,:,i] = np.float32(this_im)/255
-    img_mask = scipy.misc.imread(data_path+'building_mask_' + str(i+1).zfill(3) + '.tif')/255
-    masks[:,:,0,i] = scipy.misc.imresize(img_mask,[out_size,out_size])/255
-GT = np.minimum(GT,out_size-1)
-GT = np.maximum(GT,0)
+num_ims = 400
+batch_size = 1
+im_size = 64
+out_size = 64
+data_path = 'single_buildings/'
+images = np.zeros([num_ims,im_size,im_size,3])
+onehot_labels = np.zeros([num_ims,out_size,out_size,3])
+for i in range(num_ims):
+    this_im  = scipy.misc.imread(data_path+'building_'+str(i+1)+'.png')
+    images[i,:,:,:] = np.float32(this_im)/255
+    img_mask = scipy.misc.imread(data_path+'building_mask_' + str(i+1) + '.png')/255
+    img_mask /= 257
+    edge = skimage.morphology.binary_dilation(img_mask)-img_mask
+    edge = np.float32(edge)
+    onehot_labels[i,:,:,0] = scipy.misc.imresize(1-img_mask-edge,[out_size,out_size],interp='nearest')/255
+    onehot_labels[i,:,:,1] = scipy.misc.imresize(img_mask,[out_size,out_size],interp='nearest')/255
+    onehot_labels[i,:,:,2] = scipy.misc.imresize(edge,[out_size,out_size],interp='nearest')/255
+
 
 with tf.device('/gpu:0'):
 
     #Input and output
-    x = tf.placeholder(tf.float32, shape=[im_size, im_size, 3, batch_size])
-    x_image = tf.reshape(x, [-1, im_size, im_size, 3])
-    y_ = tf.placeholder(tf.float32, shape=GT[:,:,0].shape)
+    x_ = tf.placeholder(tf.float32, shape=[batch_size,im_size, im_size, 3])
+    y_ = tf.placeholder(tf.float32, shape=[batch_size,im_size, im_size, 3])
 
     #First conv layer
     W_conv1 = weight_variable([3, 3, 3, 16])
     b_conv1 = bias_variable([16])
-    h_conv1 = tf.nn.relu(conv2d(x_image, W_conv1) + b_conv1)
+    h_conv1 = tf.nn.relu(conv2d(x_, W_conv1) + b_conv1)
     h_pool1 = batch_norm(max_pool_2x2(h_conv1))
 
 
@@ -133,74 +94,33 @@ with tf.device('/gpu:0'):
     h_conv3 = tf.nn.relu(conv2d(h_pool2, W_conv3) + b_conv3)
     h_pool3 = batch_norm(max_pool_2x2(h_conv3))
 
-    #Forth conv layer
-    W_conv4 = weight_variable([3, 3, 32, 32])
-    b_conv4 = bias_variable([32])
-    h_conv4 = tf.nn.relu(conv2d(h_pool3, W_conv4) + b_conv4)
-    h_pool4 = batch_norm(max_pool_2x2(h_conv4))
-
-    #Fifth conv layer
-    W_conv5 = weight_variable([3, 3, 32, 32])
-    b_conv5 = bias_variable([32])
-    h_conv5 = tf.nn.relu(conv2d(h_pool4, W_conv5) + b_conv5)
-    h_pool5 = batch_norm(max_pool_2x2(h_conv5))
-
-    #Sixth conv layer
-    W_conv6 = weight_variable([3, 3, 32, 32])
-    b_conv6 = bias_variable([32])
-    h_conv6 = tf.nn.relu(conv2d(h_pool5, W_conv6) + b_conv6)
-    h_pool6 = batch_norm(max_pool_2x2(h_conv6))
 
     #Resize and concat
-    #resized_out1 = tf.image.resize_images(h_pool1, [im_size, im_size])
-    #resized_out2 = tf.image.resize_images(h_pool2, [im_size, im_size])
+    resized_out1 = tf.image.resize_images(h_pool1, [out_size, out_size])
+    resized_out2 = tf.image.resize_images(h_pool2, [out_size, out_size])
     resized_out3 = tf.image.resize_images(h_pool3, [out_size, out_size])
-    resized_out4 = tf.image.resize_images(h_pool4, [out_size, out_size])
-    resized_out5 = tf.image.resize_images(h_pool5, [out_size, out_size])
-    resized_out6 = tf.image.resize_images(h_pool6, [out_size, out_size])
-    h_concat = tf.concat([resized_out3,resized_out4,resized_out5,resized_out6],3)
+    h_concat = tf.concat([resized_out1,resized_out2,resized_out3],3)
 
     #Final conv layer
     W_convf = weight_variable([1, 1, int(h_concat.shape[3]), 32])
     b_convf = bias_variable([32])
     h_convf = batch_norm(tf.nn.relu(conv2d(h_concat, W_convf) + b_convf))
 
-    #Predict energy
-    W_fcE = weight_variable([1, 1, 32, 1])
-    b_fcE = bias_variable([1])
-    h_fcE = conv2d(h_convf, W_fcE) + b_fcE
-    G_filt = gaussian_filter((15,15), 2)
-    predE = tf.reshape(conv2d(h_fcE,G_filt), [out_size, out_size, 1, -1])
+    #Predict labels
+    W_fc = weight_variable([1, 1, 32, 3])
+    b_fc = bias_variable([3])
+    pred = conv2d(h_convf, W_fc) + b_fc
+    pred = tf.nn.softmax(pred)
 
-    #Predict alpha
-    W_fcA = weight_variable([1, 1, 32, 1])
-    b_fcA = bias_variable([1])
-    h_fcA = conv2d(h_convf, W_fcA) + b_fcA
-    h_fcA = tf.reduce_mean(h_fcA) + h_fcA*0
-    #predA = tf.nn.softplus(tf.reshape(h_fcA,[im_size,im_size,1,-1]))
-    predA = tf.reshape(h_fcA,[out_size,out_size,1,-1])
-    #Predict beta
-    W_fcB = weight_variable([1, 1, 32, 1])
-    b_fcB = bias_variable([1])
-    h_fcB = conv2d(h_convf, W_fcB) + b_fcB
-    predB = tf.reshape(h_fcB,[out_size,out_size,1,-1])
-    #Predict kappa
-    W_fcK = weight_variable([1, 1, 32, 1])
-    b_fcK = bias_variable([1])
-    h_fcK = conv2d(h_convf, W_fcK) + b_fcK
-    predK = tf.reshape(h_fcK,[out_size,out_size,1,-1])
-
-    #Inject the gradients
-    grad_predE = tf.placeholder(tf.float32, shape=[out_size, out_size, 1, batch_size])
-    grad_predA = tf.placeholder(tf.float32, shape=[out_size, out_size, 1, batch_size])
-    grad_predB = tf.placeholder(tf.float32, shape=[out_size, out_size, 1, batch_size])
-    grad_predK = tf.placeholder(tf.float32, shape=[out_size, out_size, 1, batch_size])
-    tvars = tf.trainable_variables()
-    grads = tf.gradients([predE,predA,predB,predK], tvars, grad_ys = [grad_predE,grad_predA,grad_predB,grad_predK])
+    #Loss
+    pixel_weights = y_ * [1, 1, 3]
+    pixel_weights = tf.reduce_sum(pixel_weights, 3)
+    cross_entropy = tf.reduce_mean(
+        tf.losses.softmax_cross_entropy(y_, pred, pixel_weights))
 
 #Prepare folder to save network
 start_epoch = 0
-model_path = 'models/vai1/'
+model_path = 'models/base_bing1/'
 if not os.path.isdir(model_path):
     os.makedirs(model_path)
 else:
@@ -215,111 +135,54 @@ else:
 saver = tf.train.Saver()
 
 #Initialize CNN
-optimizer = tf.train.AdamOptimizer(0.0003, epsilon=1e-7)
-apply_gradients = optimizer.apply_gradients(zip(grads, tvars))
-
-with tf.device('/cpu:0'):
-    tf_alpha = tf.placeholder(tf.float32, shape=[out_size, out_size])
-    tf_beta = tf.placeholder(tf.float32, shape=[out_size, out_size])
-    tf_kappa = tf.placeholder(tf.float32, shape=[out_size, out_size])
-    tf_Du = tf.placeholder(tf.float32, shape=[out_size, out_size])
-    tf_Dv = tf.placeholder(tf.float32, shape=[out_size, out_size])
-    tf_u0 = tf.placeholder(tf.float32, shape=[L, 1])
-    tf_v0 = tf.placeholder(tf.float32, shape=[L, 1])
-    tf_du0 = tf.placeholder(tf.float32, shape=[L, 1])
-    tf_dv0 = tf.placeholder(tf.float32, shape=[L, 1])
-    gamma = tf.constant(1, dtype=tf.float32)
-    max_px_move = tf.constant(1, dtype=tf.float32)
-    delta_s = tf.constant(1, dtype=tf.float32)
-
-    tf_u = tf_u0
-    tf_du = tf_du0
-    tf_v = tf_v0
-    tf_dv = tf_dv0
-
-    for i in range(100):
-        tf_u, tf_v, tf_du, tf_dv = active_contour_step(tf_Du, tf_Dv, tf_du, tf_dv, tf_u, tf_v,
-                                                       tf_alpha, tf_beta, tf_kappa,
-                                                       gamma, max_px_move, delta_s)
+optimizer = tf.train.AdamOptimizer(1e-4, epsilon=1e-7).minimize(cross_entropy)
 
 
 def epoch(i,mode):
     # mode (str): train or test
     batch_ind = np.arange(i,i+batch_size)
-    batch = images[:, :, :, batch_ind]
-    batch_mask = masks[:, :, :, batch_ind]
-    thisGT = GT[:, :, batch_ind[0]]
+    batch = images[batch_ind,:, :, :]
+    batch_labels = onehot_labels[batch_ind,:, :, ]
     if mode is 'train':
         ang = np.random.rand() * 360
         for j in range(len(batch_ind)):
-            for b in range(batch.shape[2]):
-                batch[:, :, b, j] = imrotate(batch[:, :, b, j], ang)
-            batch_mask[:, :, 0, j] = imrotate(batch_mask[:, :, 0, j], ang, resample='nearest')
-        R = [[np.cos(ang * np.pi / 180), np.sin(ang * np.pi / 180)],
-             [-np.sin(ang * np.pi / 180), np.cos(ang * np.pi / 180)]]
-        thisGT -= out_size / 2
-        thisGT = np.matmul(thisGT, R)
-        thisGT += out_size / 2
+            for b in range(batch.shape[3]):
+                batch[j,:, :, b] = imrotate(batch[j,:, :, b], ang)
+                batch_labels[j,:, :, b] = imrotate(batch_labels[j,:, :, b], ang, resample='nearest')
+
     # prediction_np = sess.run(prediction,feed_dict={x:batch})
     tic = time.time()
-    [mapE, mapA, mapB, mapK] = sess.run([predE, predA, predB, predK], feed_dict={x: batch})
-    mapA = np.maximum(0, mapA)
-    mapB = np.maximum(0, mapB)
+
     #print('%.2f' % (time.time() - tic) + ' s tf inference')
     if mode is 'train':
-        for j in range(mapK.shape[3]):
-            mapK[:, :, 0, j] -= batch_mask[:, :, 0, j] * 0.5 - 0.5 / 2
-        # mapE_aug[:,:,0,j] = mapE[:,:,0,j]+np.maximum(0,20-batch_dists[:,:,0,j])*max_val/50
-    # Do snake inference
-    s = np.linspace(0, 2 * np.pi, L)
-    init_u = out_size / 2 + 40 * np.cos(s)
-    init_v = out_size / 2 + 40 * np.sin(s)
-    init_u = init_u.reshape([L, 1])
-    init_v = init_v.reshape([L, 1])
-    init_snake = np.array([init_u[:, 0], init_v[:, 0]]).T
-    for j in range(batch_size):
-        snake, snake_hist = snake_process(mapE, 0.1+0*mapA, mapB, mapK, init_snake)
-        # Get last layer gradients
-        M = mapE.shape[0]
-        N = mapE.shape[1]
-        der1, der2 = derivatives_poly(snake)
+        _,loss,res = sess.run([optimizer,cross_entropy,pred],feed_dict={x_: batch, y_: batch_labels})
+        prediction = np.int32(res[:,:,:,1] >= np.amax(res,axis=3))
 
+    if mode is 'test':
+        res = sess.run(pred, feed_dict={x_: batch})
+        prediction = np.int32(res[:, :, :, 1] >= np.amax(res, axis=3))
+        seed_im = np.zeros((out_size,out_size))
+        g = np.abs(np.linspace(-1, 1, out_size))
+        G0, G1 = np.meshgrid(g, g)
+        d = (1-np.sqrt(G0*G0 + G1*G1))
+        for j in range(len(batch_ind)):
+            val = np.max(d*prediction[j,:,:])
+            seed_im = np.int32(d*prediction[j,:,:] == val)
+            prediction[j,:,:] = skimage.morphology.reconstruction(seed_im,prediction[j,:,:])
+        #plt.imshow(res[0,:,:,:])
+        #plt.show()
 
-        der1_GT, der2_GT = derivatives_poly(thisGT)
-
-        grads_arrayE = mapE * 0.05
-        grads_arrayA = mapA * 0.5
-        grads_arrayB = mapB * 0.05
-        grads_arrayK = mapK * 0.05
-        grads_arrayE[:, :, 0, 0] -= draw_poly(snake, 1, [M, N],2) - draw_poly(thisGT, 1, [M, N],2)
-        grads_arrayA[:, :, 0, 0] -= (np.mean(der1) - np.mean(der1_GT))
-        grads_arrayB[:, :, 0, 0] -= (draw_poly(snake, der2, [M, N],2) - draw_poly(thisGT, der2_GT, [M, N],2))
-        mask_gt = draw_poly_fill(thisGT, [M, N])
-        mask_snake = draw_poly_fill(snake, [M, N])
-        grads_arrayK[:, :, 0, 0] -= mask_gt - mask_snake
-
-        intersection = (mask_gt+mask_snake) == 2
-        union = (mask_gt + mask_snake) >= 1
-        iou = np.sum(intersection) / np.sum(union)
+    intersection = (batch_labels[:,:,:,1]+prediction) == 2
+    union = (batch_labels[:,:,:,1] + prediction) >= 1
+    iou = np.sum(intersection) / np.sum(union)
     if mode is 'train':
-        tic = time.time()
-        apply_gradients.run(
-            feed_dict={x: batch, grad_predE: grads_arrayE, grad_predA: grads_arrayA, grad_predB: grads_arrayB,
-                       grad_predK: grads_arrayK})
-        #print('%.2f' % (time.time() - tic) + ' s apply gradients')
-        #print('IoU = %.2f' % (iou))
         iou_train[len(iou_train)-1] += iou
     if mode is 'test':
-        #print('IoU = %.2f' % (iou))
-        plot_snakes(snake, snake_hist, thisGT, mapE, np.maximum(mapA, 0), np.maximum(mapB, 0), mapK, \
-                    grads_arrayE, grads_arrayA, grads_arrayB, grads_arrayK, batch, batch_mask)
-        #plt.show()
         iou_test[len(iou_test)-1] += iou
 
 
 
 with tf.Session(config=tf.ConfigProto(allow_soft_placement=True,log_device_placement=True)) as sess:
-    sess2 = tf.Session(config=tf.ConfigProto(allow_soft_placement=True,log_device_placement=True))
     save_path = tf.train.latest_checkpoint(model_path)
     init = tf.global_variables_initializer()
     sess.run(init)
@@ -331,18 +194,18 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True,log_device_place
     for n in range(start_epoch,150):
         iou_test.append(0)
         iou_train.append(0)
-        for i in range(0,100,batch_size):
+        for i in range(0,300,batch_size):
             #print(i)
             #Do CNN inference
             epoch(i,'train')
-        iou_train[len(iou_train)-1] /= 100
+        iou_train[len(iou_train)-1] /= 300
         print('Train. Epoch ' + str(n) + '. IoU = %.2f' % (iou_train[len(iou_train)-1]))
         saver.save(sess,model_path+'model', global_step=n)
 
         if (n >= 0):
-            for i in range(101,168):
+            for i in range(300,400):
                 epoch(i, 'test')
-            iou_test[len(iou_test)-1] /= 68
+            iou_test[len(iou_test)-1] /= 100
             print('Test. Epoch ' + str(n) + '. IoU = %.2f' % (iou_test[len(iou_test)-1]))
 
 

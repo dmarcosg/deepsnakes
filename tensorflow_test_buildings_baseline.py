@@ -21,7 +21,8 @@ def weight_variable(shape):
     initial = tf.truncated_normal(shape, stddev=0.1)
     return tf.Variable(initial)
 
-def gaussian_filter(shape,sigma):
+
+def gaussian_filter(shape, sigma) :
     x, y = [int(np.floor(edge / 2)) for edge in shape]
     grid = np.array([[((i ** 2 + j ** 2) / (2.0 * sigma ** 2)) for i in range(-x, x + 1)] for j in range(-y, y + 1)])
     filt = np.exp(-grid) / (2 * np.pi * sigma ** 2)

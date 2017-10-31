@@ -15,6 +15,8 @@ import skimage.morphology
 
 
 
+model_path = 'models/base_bing1/'
+do_plot = True
 
 
 def weight_variable(shape):
@@ -55,19 +57,22 @@ num_ims = 400
 batch_size = 1
 im_size = 64
 out_size = 64
-data_path = 'single_buildings/'
+data_path = '/mnt/bighd/Data/BingJohn/buildings_osm/single_buildings/'
 images = np.zeros([num_ims,im_size,im_size,3])
 onehot_labels = np.zeros([num_ims,out_size,out_size,3])
+building_mask = np.zeros([num_ims,out_size,out_size,1])
 for i in range(num_ims):
     this_im  = scipy.misc.imread(data_path+'building_'+str(i+1)+'.png')
     images[i,:,:,:] = np.float32(this_im)/255
-    img_mask = scipy.misc.imread(data_path+'building_mask_' + str(i+1) + '.png')/255
-    img_mask /= 257
+    img_mask = scipy.misc.imread(data_path+'building_mask_all_' + str(i+1) + '.png')/255
     edge = skimage.morphology.binary_dilation(img_mask)-img_mask
     edge = np.float32(edge)
     onehot_labels[i,:,:,0] = scipy.misc.imresize(1-img_mask-edge,[out_size,out_size],interp='nearest')/255
     onehot_labels[i,:,:,1] = scipy.misc.imresize(img_mask,[out_size,out_size],interp='nearest')/255
     onehot_labels[i,:,:,2] = scipy.misc.imresize(edge,[out_size,out_size],interp='nearest')/255
+
+    building_mask[i,:,:,0] = scipy.misc.imresize(scipy.misc.imread(
+        data_path + 'building_mask_' + str(i + 1) + '.png'),[out_size,out_size],interp='nearest') / (255)
 
 
 with tf.device('/gpu:0'):
@@ -121,7 +126,6 @@ with tf.device('/gpu:0'):
 
 #Prepare folder to save network
 start_epoch = 0
-model_path = 'models/base_bing1/'
 if not os.path.isdir(model_path):
     os.makedirs(model_path)
 else:
@@ -144,6 +148,7 @@ def epoch(i,mode):
     batch_ind = np.arange(i,i+batch_size)
     batch = images[batch_ind,:, :, :]
     batch_labels = onehot_labels[batch_ind,:, :, ]
+    batch_mask = building_mask[batch_ind, :, :, ]
     if mode is 'train':
         ang = np.random.rand() * 360
         for j in range(len(batch_ind)):
@@ -169,12 +174,14 @@ def epoch(i,mode):
         for j in range(len(batch_ind)):
             val = np.max(d*prediction[j,:,:])
             seed_im = np.int32(d*prediction[j,:,:] == val)
-            prediction[j,:,:] = skimage.morphology.reconstruction(seed_im,prediction[j,:,:])
-        #plt.imshow(res[0,:,:,:])
-        #plt.show()
+            if val > 0:
+                prediction[j,:,:] = skimage.morphology.reconstruction(seed_im,prediction[j,:,:])
+        if do_plot:
+            plt.imshow(res[0,:,:,:])
+            plt.show()
 
-    intersection = (batch_labels[:,:,:,1]+prediction) == 2
-    union = (batch_labels[:,:,:,1] + prediction) >= 1
+    intersection = (batch_mask[:,:,:,0]+prediction) == 2
+    union = (batch_mask[:,:,:,0] + prediction) >= 1
     iou = np.sum(intersection) / np.sum(union)
     if mode is 'train':
         iou_train[len(iou_train)-1] += iou

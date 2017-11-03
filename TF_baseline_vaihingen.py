@@ -209,7 +209,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True,log_device_place
         start_epoch = int(save_path.split('-')[-1].split('.')[0])+1
     iou_test = []
     iou_train = []
-    for n in range(start_epoch,50):
+    for n in range(start_epoch,51):
         iou_test = 0
         iou_train = 0
         for i in range(0,100,batch_size):

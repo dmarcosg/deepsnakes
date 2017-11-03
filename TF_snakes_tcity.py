@@ -10,6 +10,9 @@ from snake_utils import imrotate, plot_snakes, polygon_area, CNN, snake_graph
 from scipy import interpolate
 import scipy
 import time
+import sys
+sys.stdout.flush()
+
 
 print('Importing packages... done!')
 

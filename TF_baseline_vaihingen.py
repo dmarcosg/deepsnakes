@@ -17,7 +17,7 @@ import skimage.morphology
 
 model_path = 'models/base_vai1/'
 do_plot = False
-do_save_results = False
+do_save_results = True
 
 
 def weight_variable(shape,wd=0.0):

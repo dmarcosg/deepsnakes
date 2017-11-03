@@ -69,9 +69,10 @@ images = np.zeros([im_size,im_size,3,total_num],dtype=np.uint8)
 masks = np.zeros([out_size,out_size,1,total_num],dtype=np.uint8)
 GT = np.zeros([L,2,total_num])
 DWT = np.zeros([L,2,total_num])
-i = 0
+
 # For each TCity tile, since there's one .csv per tile containing the bounding boxes
 for csv_name in csv_names:
+    i = 0
     tile_name = csv_name[0:-7]
     print('Reading tile: '+ tile_name)
     csvfile_gt = open(gt_path + tile_name + '_polygons.csv', newline='')

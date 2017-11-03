@@ -1,3 +1,5 @@
+print('Importing packages...')
+
 import tensorflow as tf
 import scipy.misc
 import numpy as np
@@ -9,6 +11,7 @@ from scipy import interpolate
 import scipy
 import time
 
+print('Importing packages... done!')
 
 model_path = 'models/tcity1/'
 do_plot = False
@@ -55,6 +58,7 @@ dwt_path = '/nobackup/marcosdi/TCityBuildings/building_crops_dwt/'
 ###########################################################################################
 # LOAD DATA
 ###########################################################################################
+print('Preparing to read the images...')
 files = os.listdir(images_path)
 csv_names = [f for f in files if f[-4:] == '.csv']
 png_names = [f for f in files if f[-4:] == '.png']
@@ -110,11 +114,13 @@ GT = np.maximum(GT,0)
 DWT = np.minimum(DWT,out_size-1)
 DWT = np.maximum(DWT,0)
 
+print('All images read!')
 
 
 ###########################################################################################
 # DEFINE CNN ARCHITECTURE
 ###########################################################################################
+print('Creating...')
 with tf.device('/gpu:0'):
     tvars, grads, predE, predA, predB, predK, l2loss, grad_predE, \
     grad_predA, grad_predB, grad_predK, grad_l2loss, x, y_ = CNN(im_size, out_size, L, batch_size=1)

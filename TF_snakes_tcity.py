@@ -3,20 +3,15 @@ import scipy.misc
 import numpy as np
 import csv
 import os
-import matplotlib.pyplot as plt
 from active_contour_maps_GD_fast import draw_poly,derivatives_poly,draw_poly_fill
-from snake_inference_fast_TF import active_contour_step
 from snake_utils import imrotate, plot_snakes, polygon_area, CNN, snake_graph
 from scipy import interpolate
-from skimage.filters import gaussian
 import scipy
 import time
-import math
-from PIL import Image, ImageOps
-from tensorflow.python.client import timeline
+
 
 model_path = 'models/tcity1/'
-do_plot = True
+do_plot = False
 
 def snake_process (mapE, mapA, mapB, mapK, init_snake):
 
@@ -52,9 +47,10 @@ L = 80
 batch_size = 1
 im_size = 384
 out_size = 192
-images_path = '/mnt/bighd/Data/TorontoCityTile/building_crops/'
-gt_path = '/mnt/bighd/Data/TorontoCityTile/building_crops_gt/'
-dwt_path = '/mnt/bighd/Data/TorontoCityTile/building_crops_dwt/'
+val_proportion = 0.2
+images_path = '/nobackup/marcosdi/TCityBuildings/building_crops'
+gt_path = '/nobackup/marcosdi/TCityBuildings/building_crops_gt/'
+dwt_path = '/nobackup/marcosdi/TCityBuildings/building_crops_dwt/'
 
 ###########################################################################################
 # LOAD DATA
@@ -63,6 +59,8 @@ files = os.listdir(images_path)
 csv_names = [f for f in files if f[-4:] == '.csv']
 png_names = [f for f in files if f[-4:] == '.png']
 total_num = len(png_names)
+train_ims = np.floor((1-val_proportion)*total_num)
+test_ims = np.floor((val_proportion)*total_num)
 images = np.zeros([im_size,im_size,3,total_num],dtype=np.uint8)
 masks = np.zeros([out_size,out_size,1,total_num],dtype=np.uint8)
 GT = np.zeros([L,2,total_num])
@@ -239,27 +237,27 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True,log_device_place
         saver.restore(sess,save_path)
         start_epoch = int(save_path.split('-')[-1].split('.')[0])+1
 
-    for n in range(start_epoch,350):
+    for n in range(start_epoch,35):
         iou_test = 0
         iou_train = 0
         iter_count = 0
-        for i in range(0,100,batch_size):
+        for i in range(0,train_ims,batch_size):
             #print(i)
             #Do CNN inference
             iou_train += epoch(n,i,'train')
             iter_count += 1
-            print('Train. Epoch ' + str(n) + '. Iter ' + str(iter_count) + '/' + str(100) + ', IoU = %.2f' % (
+            print('Train. Epoch ' + str(n) + '. Iter ' + str(iter_count) + '/' + str(train_ims) + ', IoU = %.2f' % (
             iou_train / iter_count))
-        iou_train /= 100
+        iou_train /= train_ims
 
         saver.save(sess,model_path+'model', global_step=n)
         iter_count = 0
-        for i in range(100,168):
+        for i in range(train_ims,train_ims+test_ims):
             iou_test += epoch(n,i, 'test')
             iter_count += 1
-            print('Test. Epoch ' + str(n) + '. Iter ' + str(iter_count) + '/' + str(68) + ', IoU = %.2f' % (
+            print('Test. Epoch ' + str(n) + '. Iter ' + str(iter_count) + '/' + str(test_ims) + ', IoU = %.2f' % (
             iou_test / iter_count))
-        iou_test /= 68
+        iou_test /= test_ims
         iou_csvfile = open(model_path + 'iuo_train_test.csv', 'a', newline='')
         iou_writer = csv.writer(iou_csvfile)
         iou_writer.writerow([n,iou_train,iou_test])

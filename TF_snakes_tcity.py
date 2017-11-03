@@ -69,6 +69,7 @@ i = 0
 # For each TCity tile, since there's one .csv per tile containing the bounding boxes
 for csv_name in csv_names:
     tile_name = csv_name[0:-7]
+    print('Reading tile: '+ tile_name)
     csvfile_gt = open(gt_path + tile_name + '_polygons.csv', newline='')
     reader_gt = csv.reader(csvfile_gt)
     csvfile_dwt = open(dwt_path + tile_name + '_polygons.csv', newline='')

@@ -18,6 +18,8 @@ import skimage.morphology
 model_path = 'models/base_bing1/'
 do_plot = False
 
+train_ims = 400
+test_ims = 205
 
 def weight_variable(shape):
     initial = tf.truncated_normal(shape, stddev=0.1)
@@ -143,7 +145,7 @@ saver = tf.train.Saver()
 optimizer = tf.train.AdamOptimizer(1e-4, epsilon=1e-7).minimize(cross_entropy)
 
 
-def epoch(i,mode):
+def epoch(n,i,mode):
     # mode (str): train or test
     batch_ind = np.arange(i,i+batch_size)
     batch = images[batch_ind,:, :, :]
@@ -183,10 +185,8 @@ def epoch(i,mode):
     intersection = (batch_mask[:,:,:,0]+prediction) == 2
     union = (batch_mask[:,:,:,0] + prediction) >= 1
     iou = np.sum(intersection) / np.sum(union)
-    if mode is 'train':
-        iou_train[len(iou_train)-1] += iou
-    if mode is 'test':
-        iou_test[len(iou_test)-1] += iou
+
+    return iou
 
 
 
@@ -199,22 +199,31 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True,log_device_place
         start_epoch = int(save_path.split('-')[-1].split('.')[0])+1
     iou_test = []
     iou_train = []
-    for n in range(start_epoch,150):
-        iou_test.append(0)
-        iou_train.append(0)
-        for i in range(0,400,batch_size):
+    for n in range(start_epoch,45):
+        iou_test = 0
+        iou_train = 0
+        iter_count = 0
+        for i in range(0,train_ims,batch_size):
             #print(i)
             #Do CNN inference
-            epoch(i,'train')
-        iou_train[len(iou_train)-1] /= 400
-        print('Train. Epoch ' + str(n) + '. IoU = %.2f' % (iou_train[len(iou_train)-1]))
-        saver.save(sess,model_path+'model', global_step=n)
+            iou_train += epoch(n,i,'train')
+            iter_count += 1
+            print('Train. Epoch ' + str(n) + '. Iter ' + str(iter_count) + '/' + str(train_ims) + ', IoU = %.2f' % (
+            iou_train / iter_count))
+        iou_train /= train_ims
 
-        if (n >= 0):
-            for i in range(400,605):
-                epoch(i, 'test')
-            iou_test[len(iou_test)-1] /= 205
-            print('Test. Epoch ' + str(n) + '. IoU = %.2f' % (iou_test[len(iou_test)-1]))
+        saver.save(sess,model_path+'model', global_step=n)
+        iter_count = 0
+        for i in range(train_ims,train_ims+test_ims):
+            iou_test += epoch(n,i, 'test')
+            iter_count += 1
+            print('Test. Epoch ' + str(n) + '. Iter ' + str(iter_count) + '/' + str(test_ims) + ', IoU = %.2f' % (
+            iou_test / iter_count))
+        iou_test /= test_ims
+        iou_csvfile = open(model_path + 'iuo_train_test.csv', 'a', newline='')
+        iou_writer = csv.writer(iou_csvfile)
+        iou_writer.writerow([n,iou_train,iou_test])
+        iou_csvfile.close()
 
 
 

@@ -5,6 +5,8 @@ import scipy.misc
 import numpy as np
 import tensorflow as tf
 
+
+
 def active_contour_step(Fu, Fv, du, dv, snake_u, snake_v, alpha, beta,kappa,
                     gamma,max_px_move, delta_s):
 
@@ -265,7 +267,7 @@ def CNN(im_size,out_size,L,batch_size=1,layers = 5):
         b_conv.append(bias_variable([32]))
         h_conv.append(tf.nn.relu(conv2d(h_pool[-1], W_conv[-1]) + b_conv[-1]))
         h_pool.append(batch_norm(max_pool_2x2(h_conv[-1])))
-        resized_out.append(tf.image.resize_images(h_pool[-1], [out_size, out_size]))
+        resized_out.append(tf.image.resize_images(h_conv[-1], [out_size, out_size]))
 
     h_concat = tf.concat(resized_out,3)
 

@@ -10,11 +10,9 @@ from snake_utils import imrotate, plot_snakes, polygon_area, CNN, snake_graph
 from scipy import interpolate
 import scipy
 import time
-import sys
-sys.stdout.flush()
 
 
-print('Importing packages... done!')
+print('Importing packages... done!',flush=True)
 
 model_path = 'models/tcity1/'
 do_plot = False
@@ -61,7 +59,7 @@ dwt_path = '/ais/dgx1/marcosdi/TCityBuildings/building_crops_dwt/'
 ###########################################################################################
 # LOAD DATA
 ###########################################################################################
-print('Preparing to read the images...')
+print('Preparing to read the images...',flush=True)
 files = os.listdir(images_path)
 csv_names = [f for f in files if f[-4:] == '.csv']
 png_names = [f for f in files if f[-4:] == '.png']
@@ -77,7 +75,7 @@ DWT = np.zeros([L,2,total_num])
 for csv_name in csv_names:
     i = 0
     tile_name = csv_name[0:-7]
-    print('Reading tile: '+ tile_name)
+    print('Reading tile: '+ tile_name,flush=True)
     csvfile_gt = open(gt_path + tile_name + '_polygons.csv', newline='')
     reader_gt = csv.reader(csvfile_gt)
     csvfile_dwt = open(dwt_path + tile_name + '_polygons.csv', newline='')
@@ -118,13 +116,13 @@ GT = np.maximum(GT,0)
 DWT = np.minimum(DWT,out_size-1)
 DWT = np.maximum(DWT,0)
 
-print('All images read!')
+print('All images read!',flush=True)
 
 
 ###########################################################################################
 # DEFINE CNN ARCHITECTURE
 ###########################################################################################
-print('Creating...')
+print('Creating...',flush=True)
 with tf.device('/gpu:0'):
     tvars, grads, predE, predA, predB, predK, l2loss, grad_predE, \
     grad_predA, grad_predB, grad_predK, grad_l2loss, x, y_ = CNN(im_size, out_size, L, batch_size=1)
@@ -258,7 +256,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True,log_device_place
             iou_train += epoch(n,i,'train')
             iter_count += 1
             print('Train. Epoch ' + str(n) + '. Iter ' + str(iter_count) + '/' + str(train_ims) + ', IoU = %.2f' % (
-            iou_train / iter_count))
+            iou_train / iter_count),flush=True)
         iou_train /= train_ims
 
         saver.save(sess,model_path+'model', global_step=n)
@@ -267,7 +265,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True,log_device_place
             iou_test += epoch(n,i, 'test')
             iter_count += 1
             print('Test. Epoch ' + str(n) + '. Iter ' + str(iter_count) + '/' + str(test_ims) + ', IoU = %.2f' % (
-            iou_test / iter_count))
+            iou_test / iter_count),flush=True)
         iou_test /= test_ims
         iou_csvfile = open(model_path + 'iuo_train_test.csv', 'a', newline='')
         iou_writer = csv.writer(iou_csvfile)

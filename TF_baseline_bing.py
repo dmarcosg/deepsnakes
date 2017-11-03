@@ -17,6 +17,7 @@ import skimage.morphology
 
 model_path = 'models/base_bing1/'
 do_plot = False
+do_save_results = True
 
 train_ims = 400
 test_ims = 205
@@ -138,6 +139,10 @@ else:
         epoch = max(int(s.split('-')[-1].split('.')[0]),epoch)
     start_epoch = epoch + 1
 
+if do_save_results:
+    if not os.path.isdir(model_path+'results/'):
+        os.makedirs(model_path+'results/')
+
 # Add ops to save and restore all the variables.
 saver = tf.train.Saver()
 
@@ -169,22 +174,23 @@ def epoch(n,i,mode):
     if mode is 'test':
         res = sess.run(pred, feed_dict={x_: batch})
         prediction = np.int32(res[:, :, :, 1] >= np.amax(res, axis=3))
-        seed_im = np.zeros((out_size,out_size))
-        g = np.abs(np.linspace(-1, 1, out_size))
-        G0, G1 = np.meshgrid(g, g)
-        d = (1-np.sqrt(G0*G0 + G1*G1))
-        for j in range(len(batch_ind)):
-            val = np.max(d*prediction[j,:,:])
-            seed_im = np.int32(d*prediction[j,:,:] == val)
-            if val > 0:
-                prediction[j,:,:] = skimage.morphology.reconstruction(seed_im,prediction[j,:,:])
-        if do_plot:
-            plt.imshow(res[0,:,:,:])
-            plt.show()
+    g = np.abs(np.linspace(-1, 1, out_size))
+    G0, G1 = np.meshgrid(g, g)
+    d = (1-np.sqrt(G0*G0 + G1*G1))
+    for j in range(len(batch_ind)):
+        val = np.max(d*prediction[j,:,:])
+        seed_im = np.int32(d*prediction[j,:,:] == val)
+        if val > 0:
+            prediction[j,:,:] = skimage.morphology.reconstruction(seed_im,prediction[j,:,:])
+    if do_plot:
+        plt.imshow(res[0,:,:,:])
+        plt.show()
 
     intersection = (batch_mask[:,:,:,0]+prediction) == 2
     union = (batch_mask[:,:,:,0] + prediction) >= 1
     iou = np.sum(intersection) / np.sum(union)
+    if do_save_results:
+        scipy.misc.imsave(model_path + 'results/seg_' + str(i).zfill(3) + '.png', np.uint8(prediction[0, :, :] * 255))
 
     return iou
 
@@ -199,7 +205,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True,log_device_place
         start_epoch = int(save_path.split('-')[-1].split('.')[0])+1
     iou_test = []
     iou_train = []
-    for n in range(start_epoch,45):
+    for n in range(start_epoch,47):
         iou_test = 0
         iou_train = 0
         iter_count = 0

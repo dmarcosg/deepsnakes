@@ -16,13 +16,16 @@ import skimage.morphology
 
 
 model_path = 'models/base_vai1/'
-results_path = 'results/base_vai1/'
 do_plot = False
+do_save_results = False
 
 
-def weight_variable(shape):
+def weight_variable(shape,wd=0.0):
     initial = tf.truncated_normal(shape, stddev=0.1)
-    return tf.Variable(initial)
+    var = tf.Variable(initial)
+    weight_decay = tf.multiply(tf.nn.l2_loss(var), wd, name='weight_loss')
+    tf.add_to_collection('losses', weight_decay)
+    return var
 
 
 def gaussian_filter(shape, sigma) :
@@ -76,40 +79,34 @@ for i in range(num_ims):
         data_path + 'building_mask_' + str(i + 1).zfill(3) + '.tif'),[out_size,out_size],interp='nearest') / (255)
 
 
+layers = 5
 with tf.device('/gpu:0'):
 
     #Input and output
     x_ = tf.placeholder(tf.float32, shape=[batch_size,im_size, im_size, 3])
     y_ = tf.placeholder(tf.float32, shape=[batch_size,out_size, out_size, 3])
 
-    #First conv layer
-    W_conv1 = weight_variable([3, 3, 3, 32])
-    b_conv1 = bias_variable([32])
-    h_conv1 = tf.nn.relu(conv2d(x_, W_conv1) + b_conv1)
-    h_pool1 = batch_norm(max_pool_2x2(h_conv1))
+    W_conv = []
+    b_conv = []
+    h_conv = []
+    h_pool = []
+    resized_out = []
+    W_conv.append(weight_variable([3, 3, 3, 32], wd=0.001))
+    b_conv.append(bias_variable([32]))
+    h_conv.append(tf.nn.relu(conv2d(x_, W_conv[-1]) + b_conv[-1]))
+    h_pool.append(batch_norm(max_pool_2x2(h_conv[-1])))
+    resized_out.append(tf.image.resize_images(h_pool[-1], [out_size, out_size]))
+    for layer in range(1, layers):
+        W_conv.append(weight_variable([3, 3, 32, 32], wd=0.001))
+        b_conv.append(bias_variable([32]))
+        h_conv.append(tf.nn.relu(conv2d(h_pool[-1], W_conv[-1]) + b_conv[-1]))
+        h_pool.append(batch_norm(max_pool_2x2(h_conv[-1])))
+        resized_out.append(tf.image.resize_images(h_conv[-1], [out_size, out_size]))
 
+    h_concat = tf.concat(resized_out, 3)
 
-    #Second conv layer
-    W_conv2 = weight_variable([3, 3, 32, 32])
-    b_conv2 = bias_variable([32])
-    h_conv2 = tf.nn.relu(conv2d(h_pool1, W_conv2) + b_conv2)
-    h_pool2 = batch_norm(max_pool_2x2(h_conv2))
-
-    #Third conv layer
-    W_conv3 = weight_variable([3, 3, 32, 32])
-    b_conv3 = bias_variable([32])
-    h_conv3 = tf.nn.relu(conv2d(h_pool2, W_conv3) + b_conv3)
-    h_pool3 = batch_norm(max_pool_2x2(h_conv3))
-
-
-    #Resize and concat
-    resized_out1 = tf.image.resize_images(h_pool1, [out_size, out_size])
-    resized_out2 = tf.image.resize_images(h_pool2, [out_size, out_size])
-    resized_out3 = tf.image.resize_images(h_pool3, [out_size, out_size])
-    h_concat = tf.concat([resized_out1,resized_out2,resized_out3],3)
-
-    #Final conv layer
-    W_convf = weight_variable([1, 1, int(h_concat.shape[3]), 32])
+    # Final conv layer
+    W_convf = weight_variable([1, 1, int(h_concat.shape[3]), 32], wd=0.001)
     b_convf = bias_variable([32])
     h_convf = batch_norm(tf.nn.relu(conv2d(h_concat, W_convf) + b_convf))
 
@@ -124,6 +121,8 @@ with tf.device('/gpu:0'):
     pixel_weights = tf.reduce_sum(pixel_weights, 3)
     cross_entropy = tf.reduce_mean(
         tf.losses.softmax_cross_entropy(y_, pred, pixel_weights))
+    l2loss = tf.add_n(tf.get_collection('losses'), name='l2_loss')
+
 
 #Prepare folder to save network
 start_epoch = 0
@@ -141,8 +140,9 @@ else:
 saver = tf.train.Saver()
 
 #Prepare folder to save results
-if not os.path.isdir(results_path):
-    os.makedirs(results_path)
+if do_save_results:
+    if not os.path.isdir(model_path+'results/'):
+        os.makedirs(model_path+'results/')
 
 #Initialize CNN
 optimizer = tf.train.AdamOptimizer(1e-4, epsilon=1e-7).minimize(cross_entropy)
@@ -167,7 +167,7 @@ def epoch(i,mode):
 
     #print('%.2f' % (time.time() - tic) + ' s tf inference')
     if mode is 'train':
-        _,loss,res = sess.run([optimizer,cross_entropy,pred],feed_dict={x_: batch, y_: batch_labels})
+        _,loss,loss_l2,res = sess.run([optimizer,cross_entropy,l2loss,pred],feed_dict={x_: batch, y_: batch_labels})
         prediction = np.int32(res[:,:,:,1] >= np.amax(res,axis=3))
         if do_plot:
             plt.imshow(res[0,:,:,:])
@@ -193,6 +193,9 @@ def epoch(i,mode):
     iou = np.sum(intersection) / np.sum(union)
     #prediction = scipy.misc.imresize(prediction[0,:,:],[im_size,im_size])
     #scipy.misc.imsave(results_path+'baseline_result_'+str(i).zfill(3)+'.tif',prediction)
+    if do_save_results:
+        scipy.misc.imsave(model_path + 'results/seg_' + str(i).zfill(3) + '.png', np.uint8(prediction[0, :, :] * 255))
+
     return iou
 
 
@@ -206,7 +209,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True,log_device_place
         start_epoch = int(save_path.split('-')[-1].split('.')[0])+1
     iou_test = []
     iou_train = []
-    for n in range(start_epoch,101):
+    for n in range(start_epoch,50):
         iou_test = 0
         iou_train = 0
         for i in range(0,100,batch_size):

@@ -51,9 +51,9 @@ batch_size = 1
 im_size = 384
 out_size = 192
 val_proportion = 0.2
-images_path = '/nobackup/marcosdi/TCityBuildings/building_crops'
-gt_path = '/nobackup/marcosdi/TCityBuildings/building_crops_gt/'
-dwt_path = '/nobackup/marcosdi/TCityBuildings/building_crops_dwt/'
+images_path = '/ais/dgx1/marcosdi/TCityBuildings/building_crops'
+gt_path = '/ais/dgx1/marcosdi/TCityBuildings/building_crops_gt/'
+dwt_path = '/ais/dgx1/marcosdi/TCityBuildings/building_crops_dwt/'
 
 ###########################################################################################
 # LOAD DATA

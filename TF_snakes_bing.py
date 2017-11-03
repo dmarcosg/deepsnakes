@@ -82,17 +82,18 @@ def batch_norm(x):
 
 #Load data
 L = 20
+num_ims = 605
 batch_size = 1
 im_size = 64
 out_size = 64
 data_path = '/home/diego/PycharmProjects/snakes_prj/deepsnakes/single_buildings/'
 csvfile=open(data_path+'building_coords.csv', newline='')
 reader = csv.reader(csvfile)
-images = np.zeros([im_size,im_size,3,400])
-dists = np.zeros([im_size,im_size,1,400])
-masks = np.zeros([im_size,im_size,1,400])
-GT = np.zeros([L,2,400])
-for i in range(400):
+images = np.zeros([im_size,im_size,3,num_ims])
+dists = np.zeros([im_size,im_size,1,num_ims])
+masks = np.zeros([im_size,im_size,1,num_ims])
+GT = np.zeros([L,2,num_ims])
+for i in range(num_ims):
     poly = np.zeros([5, 2])
     corners = reader.__next__()
     for c in range(4):
@@ -121,14 +122,14 @@ with tf.device('/gpu:0'):
     y_ = tf.placeholder(tf.float32, shape=GT[:,:,0].shape)
 
     #First conv layer
-    W_conv1 = weight_variable([3, 3, 3, 16])
-    b_conv1 = bias_variable([16])
+    W_conv1 = weight_variable([3, 3, 3, 32])
+    b_conv1 = bias_variable([32])
     h_conv1 = tf.nn.relu(conv2d(x_image, W_conv1) + b_conv1)
     h_pool1 = batch_norm(max_pool_2x2(h_conv1))
 
 
     #Second conv layer
-    W_conv2 = weight_variable([3, 3, 16, 32])
+    W_conv2 = weight_variable([3, 3, 32, 32])
     b_conv2 = bias_variable([32])
     h_conv2 = tf.nn.relu(conv2d(h_pool1, W_conv2) + b_conv2)
     h_pool2 = batch_norm(max_pool_2x2(h_conv2))
@@ -200,7 +201,7 @@ else:
 saver = tf.train.Saver()
 
 #Initialize CNN
-optimizer = tf.train.AdamOptimizer(0.0003, epsilon=1e-7)
+optimizer = tf.train.AdamOptimizer(1e-4, epsilon=1e-7)
 apply_gradients = optimizer.apply_gradients(zip(grads, tvars))
 
 with tf.device('/cpu:0'):
@@ -309,18 +310,18 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True,log_device_place
     for n in range(start_epoch,150):
         iou_test.append(0)
         iou_train.append(0)
-        for i in range(300):
+        for i in range(400):
             #print(i)
             #Do CNN inference
             epoch(i,'train')
-        iou_train[len(iou_train)-1] /= 300
+        iou_train[len(iou_train)-1] /= 400
         print('Train. Epoch ' + str(n) + '. IoU = %.2f' % (iou_train[len(iou_train)-1]))
         saver.save(sess,model_path+'model', global_step=n)
 
         if (n >= 0):
-            for i in range(301,400):
+            for i in range(400,605):
                 epoch(i, 'test')
-            iou_test[len(iou_test)-1] /= 100
+            iou_test[len(iou_test)-1] /= 205
             print('Test. Epoch ' + str(n) + '. IoU = %.2f' % (iou_test[len(iou_test)-1]))
 
 

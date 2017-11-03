@@ -5,7 +5,8 @@ import csv
 import os
 import matplotlib.pyplot as plt
 from active_contour_maps_GD_fast import draw_poly,derivatives_poly,draw_poly_fill
-from snake_utils import imrotate, plot_snakes, CNN, snake_graph
+from snake_inference_fast_TF import active_contour_step
+from snake_utils import imrotate, plot_snakes, polygon_area, CNN, snake_graph
 from scipy import interpolate
 from skimage.filters import gaussian
 import scipy
@@ -14,7 +15,7 @@ import math
 from PIL import Image, ImageOps
 from tensorflow.python.client import timeline
 
-model_path = 'models/vai2/'
+model_path = 'models/tcity1/'
 do_plot = True
 
 def snake_process (mapE, mapA, mapB, mapK, init_snake):
@@ -43,38 +44,96 @@ def snake_process (mapE, mapA, mapB, mapK, init_snake):
 
 
 
+
+
+
 #Load data
-L = 90
+L = 80
 batch_size = 1
-im_size = 512
-out_size = 256
-data_path = '/mnt/bighd/Data/Vaihingen/buildings/'
-csvfile=open(data_path+'polygons.csv', newline='')
-reader = csv.reader(csvfile)
-images = np.zeros([im_size,im_size,3,168])
-masks = np.zeros([out_size,out_size,1,168])
-GT = np.zeros([L,2,168])
-for i in range(168):
-    corners = reader.__next__()
-    num_points = np.int32(corners[0])
-    poly = np.zeros([num_points, 2])
-    for c in range(num_points):
-        poly[c, 0] = np.float(corners[1+2*c])*out_size/im_size
-        poly[c, 1] = np.float(corners[2+2*c])*out_size/im_size
-    [tck, u] = interpolate.splprep([poly[:, 0], poly[:, 1]], s=2, k=1, per=1)
-    [GT[:,0,i], GT[:,1,i]] = interpolate.splev(np.linspace(0, 1, L), tck)
-    this_im  = scipy.misc.imread(data_path+'building_'+str(i+1).zfill(3)+'.tif')
-    images[:,:,:,i] = np.float32(this_im)/255
-    img_mask = scipy.misc.imread(data_path+'building_mask_' + str(i+1).zfill(3) + '.tif')/255
-    masks[:,:,0,i] = scipy.misc.imresize(img_mask,[out_size,out_size])/255
+im_size = 384
+out_size = 192
+images_path = '/mnt/bighd/Data/TorontoCityTile/building_crops/'
+gt_path = '/mnt/bighd/Data/TorontoCityTile/building_crops_gt/'
+dwt_path = '/mnt/bighd/Data/TorontoCityTile/building_crops_dwt/'
+
+###########################################################################################
+# LOAD DATA
+###########################################################################################
+files = os.listdir(images_path)
+csv_names = [f for f in files if f[-4:] == '.csv']
+png_names = [f for f in files if f[-4:] == '.png']
+total_num = len(png_names)
+images = np.zeros([im_size,im_size,3,total_num],dtype=np.uint8)
+masks = np.zeros([out_size,out_size,1,total_num],dtype=np.uint8)
+GT = np.zeros([L,2,total_num])
+DWT = np.zeros([L,2,total_num])
+i = 0
+# For each TCity tile, since there's one .csv per tile containing the bounding boxes
+for csv_name in csv_names:
+    tile_name = csv_name[0:-7]
+    csvfile_gt = open(gt_path + tile_name + '_polygons.csv', newline='')
+    reader_gt = csv.reader(csvfile_gt)
+    csvfile_dwt = open(dwt_path + tile_name + '_polygons.csv', newline='')
+    reader_dwt = csv.reader(csvfile_dwt)
+    while True:
+        try:
+            corners_gt = reader_gt.__next__()
+            corners_dwt = reader_dwt.__next__()
+        except:
+            break
+        # Get GT polygons
+        num_points = np.int32(corners_gt[0])
+        poly = np.zeros([num_points, 2])
+        for c in range(num_points):
+            poly[c, 0] = np.float(corners_gt[1 + 2 * c]) * out_size / im_size
+            poly[c, 1] = np.float(corners_gt[2 + 2 * c]) * out_size / im_size
+        [tck, u] = interpolate.splprep([poly[:, 0], poly[:, 1]], s=2, k=1, per=1)
+        [GT[:, 0, i], GT[:, 1, i]] = interpolate.splev(np.linspace(0, 1, L), tck)
+        # Get DWT polygons
+        num_points = np.int32(corners_dwt[0])
+        poly = np.zeros([num_points, 2])
+        for c in range(num_points):
+            poly[c, 0] = np.float(corners_dwt[1 + 2 * c]) * out_size / im_size
+            poly[c, 1] = np.float(corners_dwt[2 + 2 * c]) * out_size / im_size
+        [tck, u] = interpolate.splprep([poly[:, 0], poly[:, 1]], s=2, k=1, per=1)
+        [DWT[:, 0, i], DWT[:, 1, i]] = interpolate.splev(np.linspace(0, 1, L), tck)
+        if polygon_area(DWT[:, 0, i],DWT[:, 1, i]) < 0:
+            DWT[:, :, i] = DWT[::-1, :, i]
+        # Get image and GT mask
+        this_im = scipy.misc.imread(images_path + tile_name + '_building_' + str(i + 1).zfill(4) + '.png')
+        images[:, :, :, i] = scipy.misc.imresize(this_im,[im_size,im_size])
+        this_mask = scipy.misc.imread(gt_path + tile_name + '_building_' + str(i + 1).zfill(4) + '.png')
+        masks[:, :, 0, i] = scipy.misc.imresize(this_mask, [out_size, out_size],interp='nearest') > 0
+        i += 1
+
 GT = np.minimum(GT,out_size-1)
 GT = np.maximum(GT,0)
+DWT = np.minimum(DWT,out_size-1)
+DWT = np.maximum(DWT,0)
 
+
+
+###########################################################################################
+# DEFINE CNN ARCHITECTURE
+###########################################################################################
 with tf.device('/gpu:0'):
     tvars, grads, predE, predA, predB, predK, l2loss, grad_predE, \
     grad_predA, grad_predB, grad_predK, grad_l2loss, x, y_ = CNN(im_size, out_size, L, batch_size=1)
 
+#Initialize CNN
+optimizer = tf.train.AdamOptimizer(1e-4, epsilon=1e-7)
+apply_gradients = optimizer.apply_gradients(zip(grads, tvars))
+
+###########################################################################################
+# DEFINE SNAKE INFERENCE
+###########################################################################################
+with tf.device('/cpu:0'):
+    tf_u, tf_v, tf_du, tf_dv, tf_Du, tf_Dv, tf_u0, tf_v0, tf_du0, tf_dv0, \
+    tf_alpha, tf_beta, tf_kappa = snake_graph(out_size, L)
+
+###########################################################################################
 #Prepare folder to save network
+###########################################################################################
 start_epoch = 0
 if not os.path.isdir(model_path):
     os.makedirs(model_path)
@@ -89,22 +148,17 @@ else:
 # Add ops to save and restore all the variables.
 saver = tf.train.Saver()
 
-#Initialize CNN
-optimizer = tf.train.AdamOptimizer(1e-4, epsilon=1e-6)
-apply_gradients = optimizer.apply_gradients(zip(grads, tvars))
 
-with tf.device('/cpu:0'):
-    tf_u, tf_v, tf_du, tf_dv, tf_Du, tf_Dv, tf_u0, tf_v0, tf_du0, tf_dv0, \
-    tf_alpha, tf_beta, tf_kappa = snake_graph(out_size, L)
-
-
-
+###########################################################################################
+# DEFINE EPOCH
+###########################################################################################
 def epoch(n,i,mode):
     # mode (str): train or test
     batch_ind = np.arange(i,i+batch_size)
-    batch = np.copy(images[:, :, :, batch_ind])
+    batch = np.float32(np.copy(images[:, :, :, batch_ind]))/255
     batch_mask = np.copy(masks[:, :, :, batch_ind])
     thisGT = np.copy(GT[:, :, batch_ind[0]])
+    thisDWT = np.copy(DWT[:, :, batch_ind[0]])
     if mode is 'train':
         ang = np.random.rand() * 360
         for j in range(len(batch_ind)):
@@ -116,24 +170,24 @@ def epoch(n,i,mode):
         thisGT -= out_size / 2
         thisGT = np.matmul(thisGT, R)
         thisGT += out_size / 2
+        thisDWT -= out_size / 2
+        thisDWT = np.matmul(thisDWT, R)
+        thisDWT += out_size / 2
+        thisGT = np.minimum(thisGT, out_size - 1)
+        thisGT = np.maximum(thisGT, 0)
+        thisDWT = np.minimum(thisDWT, out_size - 1)
+        thisDWT = np.maximum(thisDWT, 0)
     # prediction_np = sess.run(prediction,feed_dict={x:batch})
-    tic = time.time()
     [mapE, mapA, mapB, mapK, l2] = sess.run([predE, predA, predB, predK, l2loss], feed_dict={x: batch})
-    mapB = np.maximum(mapB,0)
+    mapB = np.maximum(mapB, 0)
     mapK = np.maximum(mapK, 0)
     #print('%.2f' % (time.time() - tic) + ' s tf inference')
     if mode is 'train':
         for j in range(mapK.shape[3]):
             mapK[:, :, 0, j] -= batch_mask[:, :, 0, j] * 0.5 - 0.5 / 2
-        # mapE_aug[:,:,0,j] = mapE[:,:,0,j]+np.maximum(0,20-batch_dists[:,:,0,j])*max_val/50
     # Do snake inference
-    s = np.linspace(0, 2 * np.pi, L)
-    init_u = out_size / 2 + 20 * np.cos(s)
-    init_v = out_size / 2 + 20 * np.sin(s)
-    init_u = init_u.reshape([L, 1])
-    init_v = init_v.reshape([L, 1])
-    init_snake = np.array([init_u[:, 0], init_v[:, 0]]).T
     for j in range(batch_size):
+        init_snake = thisDWT
         snake, snake_hist = snake_process(mapE, mapA, mapB, mapK, init_snake)
         # Get last layer gradients
         M = mapE.shape[0]
@@ -166,14 +220,16 @@ def epoch(n,i,mode):
         #print('IoU = %.2f' % (iou))
     #if mode is 'test':
         #print('IoU = %.2f' % (iou))
-    if do_plot and n >=10 and mode is 'test':
-        plot_snakes(snake, snake_hist, thisGT, mapE, mapA, mapB, mapK, \
+    if do_plot and n >=35  and mode is 'test':
+        plot_snakes(snake, snake_hist, thisGT, mapE, np.maximum(mapA, 0), np.maximum(mapB, 0), mapK, \
                 grads_arrayE, grads_arrayA, grads_arrayB, grads_arrayK, batch, batch_mask)
         #plt.show()
     return iou
 
 
-
+###########################################################################################
+# RUN THE TRAINING
+###########################################################################################
 with tf.Session(config=tf.ConfigProto(allow_soft_placement=True,log_device_placement=True)) as sess:
     sess2 = tf.Session(config=tf.ConfigProto(allow_soft_placement=True,log_device_placement=True))
     save_path = tf.train.latest_checkpoint(model_path)
@@ -183,7 +239,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True,log_device_place
         saver.restore(sess,save_path)
         start_epoch = int(save_path.split('-')[-1].split('.')[0])+1
 
-    for n in range(start_epoch,250):
+    for n in range(start_epoch,350):
         iou_test = 0
         iou_train = 0
         iter_count = 0
@@ -216,9 +272,6 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True,log_device_place
 
 
 
-#if os.path.isfile(model_path+'iuo_train_test.csv'):
-
-#else:
 
 
 

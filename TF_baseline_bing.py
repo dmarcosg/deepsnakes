@@ -16,7 +16,7 @@ import skimage.morphology
 
 
 model_path = 'models/base_bing1/'
-do_plot = True
+do_plot = False
 
 
 def weight_variable(shape):
@@ -53,7 +53,7 @@ def batch_norm(x):
     return tf.nn.batch_normalization(x, batch_mean, batch_var, beta, scale, 1e-7)
 
 #Load data
-num_ims = 400
+num_ims = 605
 batch_size = 1
 im_size = 64
 out_size = 64
@@ -79,17 +79,17 @@ with tf.device('/gpu:0'):
 
     #Input and output
     x_ = tf.placeholder(tf.float32, shape=[batch_size,im_size, im_size, 3])
-    y_ = tf.placeholder(tf.float32, shape=[batch_size,im_size, im_size, 3])
+    y_ = tf.placeholder(tf.float32, shape=[batch_size,out_size, out_size, 3])
 
     #First conv layer
-    W_conv1 = weight_variable([3, 3, 3, 16])
-    b_conv1 = bias_variable([16])
+    W_conv1 = weight_variable([3, 3, 3, 32])
+    b_conv1 = bias_variable([32])
     h_conv1 = tf.nn.relu(conv2d(x_, W_conv1) + b_conv1)
     h_pool1 = batch_norm(max_pool_2x2(h_conv1))
 
 
     #Second conv layer
-    W_conv2 = weight_variable([3, 3, 16, 32])
+    W_conv2 = weight_variable([3, 3, 32, 32])
     b_conv2 = bias_variable([32])
     h_conv2 = tf.nn.relu(conv2d(h_pool1, W_conv2) + b_conv2)
     h_pool2 = batch_norm(max_pool_2x2(h_conv2))
@@ -202,18 +202,18 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True,log_device_place
     for n in range(start_epoch,150):
         iou_test.append(0)
         iou_train.append(0)
-        for i in range(0,300,batch_size):
+        for i in range(0,400,batch_size):
             #print(i)
             #Do CNN inference
             epoch(i,'train')
-        iou_train[len(iou_train)-1] /= 300
+        iou_train[len(iou_train)-1] /= 400
         print('Train. Epoch ' + str(n) + '. IoU = %.2f' % (iou_train[len(iou_train)-1]))
         saver.save(sess,model_path+'model', global_step=n)
 
         if (n >= 0):
-            for i in range(300,400):
+            for i in range(400,605):
                 epoch(i, 'test')
-            iou_test[len(iou_test)-1] /= 100
+            iou_test[len(iou_test)-1] /= 205
             print('Test. Epoch ' + str(n) + '. IoU = %.2f' % (iou_test[len(iou_test)-1]))
 
 

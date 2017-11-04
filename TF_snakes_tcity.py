@@ -74,6 +74,8 @@ masks = np.zeros([out_size,out_size,1,total_num],dtype=np.uint8)
 GT = np.zeros([L,2,total_num])
 DWT = np.zeros([L,2,total_num])
 
+all_building_names = []
+
 # For each TCity tile, since there's one .csv per tile containing the bounding boxes
 for csv_name in csv_names:
     i = 0
@@ -108,6 +110,7 @@ for csv_name in csv_names:
         if polygon_area(DWT[:, 0, i],DWT[:, 1, i]) < 0:
             DWT[:, :, i] = DWT[::-1, :, i]
         # Get image and GT mask
+        all_building_names.append(tile_name + '_building_' + str(i + 1).zfill(4) + '.png')
         this_im = scipy.misc.imread(images_path + tile_name + '_building_' + str(i + 1).zfill(4) + '.png')
         images[:, :, :, i] = scipy.misc.imresize(this_im,[im_size,im_size])
         this_mask = scipy.misc.imread(gt_path + tile_name + '_building_' + str(i + 1).zfill(4) + '.png')

@@ -16,13 +16,13 @@ if intoronto
     crops_gt_path = '/ais/dgx1/marcosdi/TCityBuildings/building_crops_gt';
     crops_dwt_path = '/ais/dgx1/marcosdi/TCityBuildings/building_crops_dwt';
 else
-    ims_path = '.';
-    gt_path = '.';
-    dwt_path = '.';
+    ims_path = '/mnt/bighd/Data/TorontoCityTile';
+    gt_path = '/mnt/bighd/Data/TorontoCityTile';
+    dwt_path = '/mnt/bighd/Data/TorontoCityTile';
 
-    crops_path = 'building_crops';
-    crops_gt_path = 'building_crops_gt';
-    crops_dwt_path = 'building_crops_dwt';
+    crops_path = '/mnt/bighd/Data/TorontoCityTile/building_crops';
+    crops_gt_path = '/mnt/bighd/Data/TorontoCityTile/building_crops_gt';
+    crops_dwt_path = '/mnt/bighd/Data/TorontoCityTile/building_crops_dwt';
 end
 
 ims = dir(fullfile(ims_path,'*_0.png'));
@@ -95,7 +95,7 @@ for num = 1:numel(ims)
             crop_gt = imcrop(building_map,bb);
             gt_vals = crop_gt(crop_dwt(:)==stats{i,'MeanIntensity'});
             gt_vals = gt_vals(gt_vals>0);
-            if isempty(gt_vals)
+            if isempty(gt_vals) || numel(gt_vals) < 100
                 continue;
             end
             gt_ind = mode(gt_vals);
@@ -118,7 +118,7 @@ for num = 1:numel(ims)
             [ps_gt,ix_gt] = dpsimplify(B_gt{1},3);
             data_gt(count,1) = double(size(ps_gt,1));
             pst = ps_gt';
-            if size(ps_gt,1) >= 3
+            if size(ps_gt,1) <= 3
                 continue;
             end
             pst = pst(:);

@@ -14,7 +14,7 @@ import time
 
 print('Importing packages... done!',flush=True)
 
-model_path = 'models/tcity2/'
+model_path = 'models/tcity1/'
 do_plot = False
 only_test = False
 intoronto = True
@@ -259,7 +259,7 @@ def epoch(n,i,mode):
         #print('IoU = %.2f' % (iou))
     #if mode is 'test':
         #print('IoU = %.2f' % (iou))
-    if do_plot and n >=10:
+    if do_plot and n >=3:
         plot_snakes(snake, snake_hist, thisGT, mapE, np.maximum(mapA, 0), np.maximum(mapB, 0), mapK, \
                 grads_arrayE, grads_arrayA, grads_arrayB, grads_arrayK, batch, batch_mask)
         #plt.show()
@@ -278,7 +278,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True,log_device_place
         saver.restore(sess,save_path)
         start_epoch = int(save_path.split('-')[-1].split('.')[0])+1
 
-    for n in range(start_epoch,36):
+    for n in range(start_epoch,500):
         resample_images()
         iou_test = 0
         iou_train = 0

@@ -15,8 +15,9 @@ import time
 print('Importing packages... done!',flush=True)
 
 model_path = 'models/tcity2/'
-do_plot = True
+do_plot = False
 only_test = False
+intoronto = True
 epoch_batch_size = 1000
 
 def snake_process (mapE, mapA, mapB, mapK, init_snake):
@@ -54,12 +55,14 @@ batch_size = 1
 im_size = 384
 out_size = 192
 val_proportion = 0.2
-#images_path = '/ais/dgx1/marcosdi/TCityBuildings/building_crops/'
-#gt_path = '/ais/dgx1/marcosdi/TCityBuildings/building_crops_gt/'
-#dwt_path = '/ais/dgx1/marcosdi/TCityBuildings/building_crops_dwt/'
-images_path = '/mnt/bighd/Data/TorontoCityTile/building_crops/'
-gt_path = '/mnt/bighd/Data/TorontoCityTile/building_crops_gt/'
-dwt_path = '/mnt/bighd/Data/TorontoCityTile/building_crops_dwt/'
+if intoronto:
+    images_path = '/ais/dgx1/marcosdi/TCityBuildings/building_crops/'
+    gt_path = '/ais/dgx1/marcosdi/TCityBuildings/building_crops_gt/'
+    dwt_path = '/ais/dgx1/marcosdi/TCityBuildings/building_crops_dwt/'
+else:
+    images_path = '/mnt/bighd/Data/TorontoCityTile/building_crops/'
+    gt_path = '/mnt/bighd/Data/TorontoCityTile/building_crops_gt/'
+    dwt_path = '/mnt/bighd/Data/TorontoCityTile/building_crops_dwt/'
 
 ###########################################################################################
 # LOAD POLYGON DATA

@@ -15,7 +15,9 @@ import time
 print('Importing packages... done!',flush=True)
 
 model_path = 'models/tcity2/'
-do_plot = False
+do_plot = True
+only_test = False
+epoch_batch_size = 1000
 
 def snake_process (mapE, mapA, mapB, mapK, init_snake):
 
@@ -62,21 +64,25 @@ dwt_path = '/mnt/bighd/Data/TorontoCityTile/building_crops_dwt/'
 ###########################################################################################
 # LOAD POLYGON DATA
 ###########################################################################################
-print('Preparing to read the images...',flush=True)
+print('Preparing to read the polygons...',flush=True)
 files = os.listdir(images_path)
 csv_names = [f for f in files if f[-4:] == '.csv']
 png_names = [f for f in files if f[-4:] == '.png']
 total_num = len(png_names)
-train_ims = np.int32(np.floor((1-val_proportion)*total_num))
-test_ims = np.int32(np.floor((val_proportion)*total_num))
-images = np.zeros([im_size,im_size,3,total_num],dtype=np.uint8)
-masks = np.zeros([out_size,out_size,1,total_num],dtype=np.uint8)
-GT = np.zeros([L,2,total_num])
-DWT = np.zeros([L,2,total_num])
+train_ims = np.int32(np.floor((1-val_proportion)*epoch_batch_size))
+test_ims = np.int32(np.floor((val_proportion)*epoch_batch_size))
+images = np.zeros([im_size,im_size,3,epoch_batch_size],dtype=np.uint8)
+masks = np.zeros([out_size,out_size,1,epoch_batch_size],dtype=np.uint8)
+GT = np.zeros([L,2,epoch_batch_size])
+DWT = np.zeros([L,2,epoch_batch_size])
+
+allGT = np.zeros([L,2,total_num])
+allDWT = np.zeros([L,2,total_num])
 
 all_building_names = []
 
 # For each TCity tile, since there's one .csv per tile containing the bounding boxes
+total_count = 0
 for csv_name in csv_names:
     i = 0
     tile_name = csv_name[0:-7]
@@ -90,6 +96,7 @@ for csv_name in csv_names:
             corners_gt = reader_gt.__next__()
             corners_dwt = reader_dwt.__next__()
         except:
+            print('Buildings loaded: '+str(i)+', total: '+str(total_count),flush=True)
             break
         # Get GT polygons
         num_points = np.int32(corners_gt[0])
@@ -98,7 +105,7 @@ for csv_name in csv_names:
             poly[c, 0] = np.float(corners_gt[1 + 2 * c]) * out_size / im_size
             poly[c, 1] = np.float(corners_gt[2 + 2 * c]) * out_size / im_size
         [tck, u] = interpolate.splprep([poly[:, 0], poly[:, 1]], s=2, k=1, per=1)
-        [GT[:, 0, i], GT[:, 1, i]] = interpolate.splev(np.linspace(0, 1, L), tck)
+        [allGT[:, 0, total_count], allGT[:, 1, total_count]] = interpolate.splev(np.linspace(0, 1, L), tck)
         # Get DWT polygons
         num_points = np.int32(corners_dwt[0])
         poly = np.zeros([num_points, 2])
@@ -106,29 +113,42 @@ for csv_name in csv_names:
             poly[c, 0] = np.float(corners_dwt[1 + 2 * c]) * out_size / im_size
             poly[c, 1] = np.float(corners_dwt[2 + 2 * c]) * out_size / im_size
         [tck, u] = interpolate.splprep([poly[:, 0], poly[:, 1]], s=2, k=1, per=1)
-        [DWT[:, 0, i], DWT[:, 1, i]] = interpolate.splev(np.linspace(0, 1, L), tck)
-        if polygon_area(DWT[:, 0, i],DWT[:, 1, i]) < 0:
-            DWT[:, :, i] = DWT[::-1, :, i]
+        [allDWT[:, 0, total_count], allDWT[:, 1, total_count]] = interpolate.splev(np.linspace(0, 1, L), tck)
+        if polygon_area(allDWT[:, 0, total_count],allDWT[:, 1, total_count]) < 0:
+            allDWT[:, :, total_count] = allDWT[::-1, :, total_count]
         # Get image and GT mask
         all_building_names.append(tile_name + '_building_' + str(i + 1).zfill(4) + '.png')
-        this_im = scipy.misc.imread(images_path + tile_name + '_building_' + str(i + 1).zfill(4) + '.png')
-        images[:, :, :, i] = scipy.misc.imresize(this_im,[im_size,im_size])
-        this_mask = scipy.misc.imread(gt_path + tile_name + '_building_' + str(i + 1).zfill(4) + '.png')
-        masks[:, :, 0, i] = scipy.misc.imresize(this_mask, [out_size, out_size],interp='nearest') > 0
         i += 1
+        total_count += 1
 
-GT = np.minimum(GT,out_size-1)
-GT = np.maximum(GT,0)
-DWT = np.minimum(DWT,out_size-1)
-DWT = np.maximum(DWT,0)
+allGT = np.minimum(allGT,out_size-1)
+allGT = np.maximum(allGT,0)
+allDWT = np.minimum(allDWT,out_size-1)
+allDWT = np.maximum(allDWT,0)
 
-print('All images read!',flush=True)
+assert total_count == total_num, 'Different number of buildings found than expected!'
+
+
+###########################################################################################
+# DEFINE RESAMPLER TO ACTUALLY LOAD THE IMAGES
+###########################################################################################
+def resample_images():
+    print('Resampling images...', flush=True)
+    all_inds = np.arange(total_num)
+    inds = all_inds[np.random.permutation(epoch_batch_size)]
+    for i in range(epoch_batch_size):
+        this_im = scipy.misc.imread(images_path + all_building_names[inds[i]])
+        images[:, :, :, i] = scipy.misc.imresize(this_im, [im_size, im_size])
+        this_mask = scipy.misc.imread(gt_path + all_building_names[inds[i]])
+        masks[:, :, 0, i] = scipy.misc.imresize(this_mask, [out_size, out_size], interp='nearest') > 0
+        GT[:,:,i] = allGT[:,:,inds[i]]
+        DWT[:, :, i] = allDWT[:, :, inds[i]]
 
 
 ###########################################################################################
 # DEFINE CNN ARCHITECTURE
 ###########################################################################################
-print('Creating...',flush=True)
+print('Creating CNN...',flush=True)
 with tf.device('/gpu:0'):
     tvars, grads, predE, predA, predB, predK, l2loss, grad_predE, \
     grad_predA, grad_predB, grad_predK, grad_l2loss, x, y_ = CNN(im_size, out_size, L, batch_size=1)
@@ -141,6 +161,7 @@ apply_gradients = optimizer.apply_gradients(zip(grads, tvars))
 # DEFINE SNAKE INFERENCE
 ###########################################################################################
 niter = 50
+print('Creating snake inference graph...',flush=True)
 with tf.device('/cpu:0'):
     tf_u, tf_v, tf_du, tf_dv, tf_Du, tf_Dv, tf_u0, tf_v0, tf_du0, tf_dv0, \
     tf_alpha, tf_beta, tf_kappa = snake_graph(out_size, L,niter=niter)
@@ -148,6 +169,7 @@ with tf.device('/cpu:0'):
 ###########################################################################################
 #Prepare folder to save network
 ###########################################################################################
+print('Preparing model folder...',flush=True)
 start_epoch = 0
 if not os.path.isdir(model_path):
     os.makedirs(model_path)
@@ -234,7 +256,7 @@ def epoch(n,i,mode):
         #print('IoU = %.2f' % (iou))
     #if mode is 'test':
         #print('IoU = %.2f' % (iou))
-    if do_plot and n >=10  and mode is 'test':
+    if do_plot and n >=10:
         plot_snakes(snake, snake_hist, thisGT, mapE, np.maximum(mapA, 0), np.maximum(mapB, 0), mapK, \
                 grads_arrayE, grads_arrayA, grads_arrayB, grads_arrayK, batch, batch_mask)
         #plt.show()
@@ -253,31 +275,34 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True,log_device_place
         saver.restore(sess,save_path)
         start_epoch = int(save_path.split('-')[-1].split('.')[0])+1
 
-    for n in range(start_epoch,35):
+    for n in range(start_epoch,36):
+        resample_images()
         iou_test = 0
         iou_train = 0
         iter_count = 0
-        for i in range(0,train_ims,batch_size):
-            #print(i)
-            #Do CNN inference
-            iou_train += epoch(n,i,'train')
-            iter_count += 1
-            print('Train. Epoch ' + str(n) + '. Iter ' + str(iter_count) + '/' + str(train_ims) + ', IoU = %.2f' % (
-            iou_train / iter_count),flush=True)
-        iou_train /= train_ims
+        if not only_test:
+            for i in range(0,train_ims,batch_size):
+                #print(i)
+                #Do CNN inference
+                iou_train += epoch(n,i,'train')
+                iter_count += 1
+                print('Train. Epoch ' + str(n) + '. Iter ' + str(iter_count) + '/' + str(train_ims) + ', IoU = %.4f' % (
+                iou_train / iter_count),flush=True)
+            iou_train /= train_ims
+            saver.save(sess,model_path+'model', global_step=n)
 
-        saver.save(sess,model_path+'model', global_step=n)
         iter_count = 0
         for i in range(train_ims,train_ims+test_ims):
             iou_test += epoch(n,i, 'test')
             iter_count += 1
-            print('Test. Epoch ' + str(n) + '. Iter ' + str(iter_count) + '/' + str(test_ims) + ', IoU = %.2f' % (
+            print('Test. Epoch ' + str(n) + '. Iter ' + str(iter_count) + '/' + str(test_ims) + ', IoU = %.4f' % (
             iou_test / iter_count),flush=True)
-        iou_test /= test_ims
-        iou_csvfile = open(model_path + 'iuo_train_test.csv', 'a', newline='')
-        iou_writer = csv.writer(iou_csvfile)
-        iou_writer.writerow([n,iou_train,iou_test])
-        iou_csvfile.close()
+        if not only_test:
+            iou_test /= test_ims
+            iou_csvfile = open(model_path + 'iuo_train_test.csv', 'a', newline='')
+            iou_writer = csv.writer(iou_csvfile)
+            iou_writer.writerow([n,iou_train,iou_test])
+            iou_csvfile.close()
 
 
 

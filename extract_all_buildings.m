@@ -12,9 +12,9 @@ if intoronto
     dwt_path = '/ais/gobi4/TorontoCity/test/min/aerial_instances/joint_alignment_12_output/train';
 
     % Where to store the cropped out buildings
-    crops_path = '/nobackup/marcosdi/TCityBuildings/building_crops';
-    crops_gt_path = '/nobackup/marcosdi/TCityBuildings/building_crops_gt';
-    crops_dwt_path = '/nobackup/marcosdi/TCityBuildings/building_crops_dwt';
+    crops_path = '/ais/dgx1/marcosdi/TCityBuildings/building_crops';
+    crops_gt_path = '/ais/dgx1/marcosdi/TCityBuildings/building_crops_gt';
+    crops_dwt_path = '/ais/dgx1/marcosdi/TCityBuildings/building_crops_dwt';
 else
     ims_path = '.';
     gt_path = '.';

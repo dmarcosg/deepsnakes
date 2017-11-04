@@ -315,7 +315,7 @@ def CNN(im_size,out_size,L,batch_size=1,layers = 5):
 
     return tvars,grads,predE, predA, predB, predK, l2loss, grad_predE, grad_predA, grad_predB, grad_predK, grad_l2loss, x,y_
 
-def snake_graph(out_size,L):
+def snake_graph(out_size,L,niter=100):
     tf_alpha = tf.placeholder(tf.float32, shape=[out_size, out_size])
     tf_beta = tf.placeholder(tf.float32, shape=[out_size, out_size])
     tf_kappa = tf.placeholder(tf.float32, shape=[out_size, out_size])
@@ -334,7 +334,7 @@ def snake_graph(out_size,L):
     tf_v = tf_v0
     tf_dv = tf_dv0
 
-    for i in range(100):
+    for i in range(niter):
         tf_u, tf_v, tf_du, tf_dv = active_contour_step(tf_Du, tf_Dv, tf_du, tf_dv, tf_u, tf_v,
                                                        tf_alpha, tf_beta, tf_kappa,
                                                        gamma, max_px_move, delta_s)

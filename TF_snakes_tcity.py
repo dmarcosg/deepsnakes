@@ -14,7 +14,7 @@ import time
 
 print('Importing packages... done!',flush=True)
 
-model_path = 'models/tcity1/'
+model_path = 'models/tcity2/'
 do_plot = False
 
 def snake_process (mapE, mapA, mapB, mapK, init_snake):
@@ -52,20 +52,23 @@ batch_size = 1
 im_size = 384
 out_size = 192
 val_proportion = 0.2
-images_path = '/ais/dgx1/marcosdi/TCityBuildings/building_crops/'
-gt_path = '/ais/dgx1/marcosdi/TCityBuildings/building_crops_gt/'
-dwt_path = '/ais/dgx1/marcosdi/TCityBuildings/building_crops_dwt/'
+#images_path = '/ais/dgx1/marcosdi/TCityBuildings/building_crops/'
+#gt_path = '/ais/dgx1/marcosdi/TCityBuildings/building_crops_gt/'
+#dwt_path = '/ais/dgx1/marcosdi/TCityBuildings/building_crops_dwt/'
+images_path = '/mnt/bighd/Data/TorontoCityTile/building_crops/'
+gt_path = '/mnt/bighd/Data/TorontoCityTile/building_crops_gt/'
+dwt_path = '/mnt/bighd/Data/TorontoCityTile/building_crops_dwt/'
 
 ###########################################################################################
-# LOAD DATA
+# LOAD POLYGON DATA
 ###########################################################################################
 print('Preparing to read the images...',flush=True)
 files = os.listdir(images_path)
 csv_names = [f for f in files if f[-4:] == '.csv']
 png_names = [f for f in files if f[-4:] == '.png']
 total_num = len(png_names)
-train_ims = np.floor((1-val_proportion)*total_num)
-test_ims = np.floor((val_proportion)*total_num)
+train_ims = np.int32(np.floor((1-val_proportion)*total_num))
+test_ims = np.int32(np.floor((val_proportion)*total_num))
 images = np.zeros([im_size,im_size,3,total_num],dtype=np.uint8)
 masks = np.zeros([out_size,out_size,1,total_num],dtype=np.uint8)
 GT = np.zeros([L,2,total_num])
@@ -128,15 +131,16 @@ with tf.device('/gpu:0'):
     grad_predA, grad_predB, grad_predK, grad_l2loss, x, y_ = CNN(im_size, out_size, L, batch_size=1)
 
 #Initialize CNN
-optimizer = tf.train.AdamOptimizer(1e-4, epsilon=1e-7)
+optimizer = tf.train.AdamOptimizer(1e-6, epsilon=1e-7)
 apply_gradients = optimizer.apply_gradients(zip(grads, tvars))
 
 ###########################################################################################
 # DEFINE SNAKE INFERENCE
 ###########################################################################################
+niter = 50
 with tf.device('/cpu:0'):
     tf_u, tf_v, tf_du, tf_dv, tf_Du, tf_Dv, tf_u0, tf_v0, tf_du0, tf_dv0, \
-    tf_alpha, tf_beta, tf_kappa = snake_graph(out_size, L)
+    tf_alpha, tf_beta, tf_kappa = snake_graph(out_size, L,niter=niter)
 
 ###########################################################################################
 #Prepare folder to save network
@@ -162,7 +166,7 @@ saver = tf.train.Saver()
 def epoch(n,i,mode):
     # mode (str): train or test
     batch_ind = np.arange(i,i+batch_size)
-    batch = np.float32(np.copy(images[:, :, :, batch_ind]))/255
+    batch = np.float32(images[:, :, :, batch_ind])/255
     batch_mask = np.copy(masks[:, :, :, batch_ind])
     thisGT = np.copy(GT[:, :, batch_ind[0]])
     thisDWT = np.copy(DWT[:, :, batch_ind[0]])
@@ -227,7 +231,7 @@ def epoch(n,i,mode):
         #print('IoU = %.2f' % (iou))
     #if mode is 'test':
         #print('IoU = %.2f' % (iou))
-    if do_plot and n >=35  and mode is 'test':
+    if do_plot and n >=10  and mode is 'test':
         plot_snakes(snake, snake_hist, thisGT, mapE, np.maximum(mapA, 0), np.maximum(mapB, 0), mapK, \
                 grads_arrayE, grads_arrayA, grads_arrayB, grads_arrayK, batch, batch_mask)
         #plt.show()

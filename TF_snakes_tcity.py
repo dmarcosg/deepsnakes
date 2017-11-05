@@ -139,8 +139,8 @@ assert total_count == total_num, 'Different number of buildings found than expec
 ###########################################################################################
 def resample_images():
     print('Resampling images...', flush=True)
-    all_inds = np.arange(total_num)
-    inds = all_inds[np.random.permutation(epoch_batch_size)]
+    all_inds = np.random.permutation(total_num)
+    inds = all_inds[np.arange(epoch_batch_size)]
     for i in range(epoch_batch_size):
         this_im = scipy.misc.imread(images_path + all_building_names[inds[i]])
         images[:, :, :, i] = scipy.misc.imresize(this_im, [im_size, im_size])

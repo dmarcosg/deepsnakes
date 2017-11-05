@@ -17,8 +17,9 @@ import time
 print('Importing packages... done!',flush=True)
 
 model_path = 'models/tcity1/'
+results_path = 'results/tcity1/'
 do_plot = True
-only_test = True
+do_write_results = True
 intoronto = False
 epoch_batch_size = 1000
 
@@ -167,9 +168,11 @@ with tf.device('/cpu:0'):
     tf_alpha, tf_beta, tf_kappa = snake_graph(out_size, L,niter=niter)
 
 ###########################################################################################
-#Prepare folder to save network
+#Prepare folder to save network and results
 ###########################################################################################
 print('Loading model...',flush=True)
+if not os.path.isdir(results_path):
+    os.makedirs(results_path)
 start_epoch = 0
 assert os.path.isdir(model_path), 'No model found in the specified directory'
 modelnames = []
@@ -188,36 +191,14 @@ def epoch(n,i,mode):
     batch_ind = np.arange(i,i+batch_size)
     batch = np.float32(images[:, :, :, batch_ind])/255
     batch_mask = np.copy(masks[:, :, :, batch_ind])
-    thisNames = all_building_names[batch_ind]
+    thisNames = all_building_names[batch_ind[0]]
     thisGT = np.copy(GT[:, :, batch_ind[0]])
     thisDWT = np.copy(DWT[:, :, batch_ind[0]])
-    if mode is 'train':
-        ang = np.random.rand() * 360
-        for j in range(len(batch_ind)):
-            for b in range(batch.shape[2]):
-                batch[:, :, b, j] = imrotate(batch[:, :, b, j], ang)
-            batch_mask[:, :, 0, j] = imrotate(batch_mask[:, :, 0, j], ang, resample='nearest')
-        R = [[np.cos(ang * np.pi / 180), np.sin(ang * np.pi / 180)],
-             [-np.sin(ang * np.pi / 180), np.cos(ang * np.pi / 180)]]
-        thisGT -= out_size / 2
-        thisGT = np.matmul(thisGT, R)
-        thisGT += out_size / 2
-        thisDWT -= out_size / 2
-        thisDWT = np.matmul(thisDWT, R)
-        thisDWT += out_size / 2
-        thisGT = np.minimum(thisGT, out_size - 1)
-        thisGT = np.maximum(thisGT, 0)
-        thisDWT = np.minimum(thisDWT, out_size - 1)
-        thisDWT = np.maximum(thisDWT, 0)
     # prediction_np = sess.run(prediction,feed_dict={x:batch})
     [mapE, mapA, mapB, mapK, l2] = sess.run([predE, predA, predB, predK, l2loss], feed_dict={x: batch})
     mapB = np.maximum(mapB, 0)
     mapK = np.maximum(mapK, 0)
-    #print('%.2f' % (time.time() - tic) + ' s tf inference')
-    if mode is 'train':
-        for j in range(mapK.shape[3]):
-            mapK[:, :, 0, j] -= batch_mask[:, :, 0, j] * 0.5 - 0.5 / 2
-    # Do snake inference
+
     for j in range(batch_size):
         init_snake = thisDWT
         snake, snake_hist = snake_process(mapE, mapA, mapB, mapK, init_snake)
@@ -243,19 +224,13 @@ def epoch(n,i,mode):
         intersection = (mask_gt+mask_snake) == 2
         union = (mask_gt + mask_snake) >= 1
         iou = np.sum(intersection) / np.sum(union)
-    if mode is 'train':
-        tic = time.time()
-        apply_gradients.run(
-            feed_dict={x: batch, grad_predE: grads_arrayE, grad_predA: grads_arrayA, grad_predB: grads_arrayB,
-                       grad_predK: grads_arrayK, grad_l2loss: 1})
-        #print('%.2f' % (time.time() - tic) + ' s apply gradients')
-        #print('IoU = %.2f' % (iou))
-    #if mode is 'test':
-        #print('IoU = %.2f' % (iou))
+
     if do_plot and n >=3:
         plot_snakes(snake, snake_hist, thisGT, mapE, np.maximum(mapA, 0), np.maximum(mapB, 0), mapK, \
                 grads_arrayE, grads_arrayA, grads_arrayB, grads_arrayK, batch, batch_mask)
         #plt.show()
+    if do_write_results:
+        scipy.misc.imsave(results_path+thisNames,scipy.misc.imresize(mask_snake,[im_size,im_size],interp='nearest'))
     return iou
 
 
@@ -268,9 +243,9 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True,log_device_place
     init = tf.global_variables_initializer()
     sess.run(init)
     start_ind = 0
-    total_batches = np.ceil(total_num / epoch_batch_size)
+    total_batches = np.int32(np.ceil(total_num / epoch_batch_size))
     for n in range(total_batches):
-        inds = np.arange(start_ind,np.maximum(total_num,start_ind+epoch_batch_size))
+        inds = np.arange(start_ind,np.minimum(total_num,start_ind+epoch_batch_size))
         resample_images(inds)
         iou_test = 0
         iter_count = 0

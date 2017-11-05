@@ -3,7 +3,7 @@ s = 384;
 minsize = 20; % minimum size of the dwt proposal, in pixels
 training = 1;
 doplot = false;
-intoronto = true;
+intoronto = false;
 
 if intoronto
     % Where to get the images from

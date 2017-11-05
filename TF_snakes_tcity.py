@@ -159,7 +159,7 @@ with tf.device('/gpu:0'):
     grad_predA, grad_predB, grad_predK, grad_l2loss, x, y_ = CNN(im_size, out_size, L, batch_size=1,wd=0.01)
 
 #Initialize CNN
-optimizer = tf.train.AdamOptimizer(1e-5, epsilon=1e-7)
+optimizer = tf.train.AdamOptimizer(1e-6, epsilon=1e-7)
 apply_gradients = optimizer.apply_gradients(zip(grads, tvars))
 
 ###########################################################################################

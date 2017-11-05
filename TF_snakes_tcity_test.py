@@ -162,7 +162,7 @@ def resample_images(inds):
         masks[:, :, 0, i] = scipy.misc.imresize(this_mask, [out_size, out_size], interp='nearest') > 0
         GT[:,:,i] = allGT[:,:,inds[i]]
         DWT[:, :, i] = allDWT[:, :, inds[i]]
-        building_names.append(all_building_names[i])
+        building_names.append(all_building_names[inds[i]])
 
 
 ###########################################################################################

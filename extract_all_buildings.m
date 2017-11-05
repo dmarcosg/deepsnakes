@@ -1,20 +1,28 @@
 margin = 0.8;
 s = 384;
-minsize = 20; % minimum size of the dwt proposal, in pixels
-training = 1;
+minsize = 15; % minimum size of the dwt proposal, in pixels
+training = false;
 doplot = false;
-intoronto = false;
+intoronto = true;
 
 if intoronto
-    % Where to get the images from
-    ims_path = '/ais/gobi4/justinliang/reconstruction/data/rotated_training_images/Images_RGB';
-    gt_path = '/ais/gobi4/justinliang/reconstruction/data/rotated_training_images/Labels';
-    dwt_path = '/ais/gobi4/TorontoCity/test/min/aerial_instances/joint_alignment_12_output/train';
-
-    % Where to store the cropped out buildings
-    crops_path = '/ais/dgx1/marcosdi/TCityBuildings/building_crops';
-    crops_gt_path = '/ais/dgx1/marcosdi/TCityBuildings/building_crops_gt';
-    crops_dwt_path = '/ais/dgx1/marcosdi/TCityBuildings/building_crops_dwt';
+    if training
+        % Where to get the images from
+        ims_path = '/ais/gobi4/justinliang/reconstruction/data/rotated_training_images/Images_RGB';
+        gt_path = '/ais/gobi4/justinliang/reconstruction/data/rotated_training_images/Labels';
+        dwt_path = '/ais/gobi4/TorontoCity/test/min/aerial_instances/joint_alignment_12_output/train';
+        % Where to store the cropped out buildings
+        crops_path = '/ais/dgx1/marcosdi/TCityBuildings/building_crops';
+        crops_gt_path = '/ais/dgx1/marcosdi/TCityBuildings/building_crops_gt';
+        crops_dwt_path = '/ais/dgx1/marcosdi/TCityBuildings/building_crops_dwt';
+    else
+        % Where to get the images from
+        ims_path = '/ais/gobi4/TorontoCity/data/Generated/CVPR_DemoArea/val/Images_RGB';
+        dwt_path = '/ais/gobi4/TorontoCity/test/min/aerial_instances/joint_alignment_12_output/val';
+        % Where to store the cropped out buildings
+        crops_path = '/ais/dgx1/marcosdi/TCityBuildings/val_building_crops';
+        crops_dwt_path = '/ais/dgx1/marcosdi/TCityBuildings/val_building_crops_dwt';
+   end
 else
     ims_path = '/mnt/bighd/Data/TorontoCityTile';
     gt_path = '/mnt/bighd/Data/TorontoCityTile';
@@ -25,10 +33,14 @@ else
     crops_dwt_path = '/mnt/bighd/Data/TorontoCityTile/building_crops_dwt';
 end
 
-ims = dir(fullfile(ims_path,'*_0.png'));
-gts = dir(fullfile(gt_path,'*_0_labels.png'));
-dwts = dir(fullfile(dwt_path,'*_binary.png'));
-
+if training
+    ims = dir(fullfile(ims_path,'*_0.png'));
+    gts = dir(fullfile(gt_path,'*_0_labels.png'));
+    dwts = dir(fullfile(dwt_path,'*_binary.png'));
+else
+    ims = dir(fullfile(ims_path,'*.png'));
+    dwts = dir(fullfile(dwt_path,'*_binary.png'));
+end
 
 try
     rmdir(crops_path);

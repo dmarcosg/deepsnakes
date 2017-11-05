@@ -199,7 +199,7 @@ def epoch(n,i,mode):
     batch = np.float32(images[:, :, :, batch_ind])/255
     #batch_mask = np.copy(masks[:, :, :, batch_ind])
     thisNames = building_names[batch_ind[0]]
-    thisGT = np.copy(GT[:, :, batch_ind[0]])
+    #thisGT = np.copy(GT[:, :, batch_ind[0]])
     thisDWT = np.copy(DWT[:, :, batch_ind[0]])
     # prediction_np = sess.run(prediction,feed_dict={x:batch})
     [mapE, mapA, mapB, mapK, l2] = sess.run([predE, predA, predB, predK, l2loss], feed_dict={x: batch})
@@ -234,7 +234,7 @@ def epoch(n,i,mode):
 
     #if do_plot and n >=3:
     #    plot_snakes(snake, snake_hist, thisGT, mapE, np.maximum(mapA, 0), np.maximum(mapB, 0), mapK, \
-                grads_arrayE, grads_arrayA, grads_arrayB, grads_arrayK, batch, batch_mask)
+    #            grads_arrayE, grads_arrayA, grads_arrayB, grads_arrayK, batch, batch_mask)
         #plt.show()
     if do_write_results:
         scipy.misc.imsave(results_path+thisNames,scipy.misc.imresize(mask_snake,[im_size,im_size],interp='nearest'))
@@ -262,7 +262,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True,log_device_place
         iter_count = 0
 
         for i in range(len(inds)):
-            #iou_test += epoch(n,i, 'test')
+            epoch(n,i, 'test')
             iter_count += 1
             total_iter_count += 1
             print('Test. Batch ' + str(n) + '. Iter ' + str(total_iter_count) + '/' + str(total_num),flush=True)

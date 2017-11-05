@@ -21,7 +21,7 @@ model_path = 'models/tcity1/'
 results_path = 'results/tcity1/'
 do_plot = True
 do_write_results = True
-intoronto = False
+intoronto = True
 epoch_batch_size = 1000
 
 def snake_process (mapE, mapA, mapB, mapK, init_snake):

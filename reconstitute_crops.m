@@ -28,7 +28,11 @@ for num = 1:numel(bb_names)
     for i = 1:size(bb,1)
         crop = imread(fullfile(crops_path,crop_names(i).name));
         crop = imresize(crop,bb(i,[4 3]),'nearest');
-        im(bb(i,2):bb(i,2)+bb(i,4)-1,bb(i,1):bb(i,1)+bb(i,3)-1) = crop + im(bb(i,2):bb(i,2)+bb(i,4)-1,bb(i,1):bb(i,1)+bb(i,3)-1);
+        crop_border = imdilate(crop,ones(5))-crop;
+        prev_crop = im(bb(i,2):bb(i,2)+bb(i,4)-1,bb(i,1):bb(i,1)+bb(i,3)-1);
+        prev_crop(crop(:)>0) = 1;
+        prev_crop(crop_border(:)>0) = 0;
+        im(bb(i,2):bb(i,2)+bb(i,4)-1,bb(i,1):bb(i,1)+bb(i,3)-1) = prev_crop;
     end
     im = min(im,1);
     imwrite(im*255,fullfile(result_path,[imname,'_snake.png']));

@@ -10,6 +10,7 @@ from snake_utils import imrotate, plot_snakes, polygon_area, CNN, snake_graph
 from scipy import interpolate
 import scipy
 import time
+from shutil import copyfile
 
 #print('Waiting...',flush=True)
 #time.sleep(40*60)
@@ -67,6 +68,21 @@ else:
     dwt_path = '/mnt/bighd/Data/TorontoCityTile/building_crops_dwt/'
 
 ###########################################################################################
+#Prepare folder to save network and results
+###########################################################################################
+print('Loading model...',flush=True)
+if not os.path.isdir(results_path):
+    os.makedirs(results_path)
+start_epoch = 0
+assert os.path.isdir(model_path), 'No model found in the specified directory'
+modelnames = []
+modelnames += [each for each in os.listdir(model_path) if each.endswith('.net')]
+epoch = -1
+for s in modelnames:
+    epoch = max(int(s.split('-')[-1].split('.')[0]),epoch)
+start_epoch = epoch + 1
+
+###########################################################################################
 # LOAD POLYGON DATA
 ###########################################################################################
 print('Preparing to read the polygons...',flush=True)
@@ -83,6 +99,7 @@ allGT = np.zeros([L,2,total_num])
 allDWT = np.zeros([L,2,total_num])
 
 all_building_names = []
+building_names = []
 
 # For each TCity tile, since there's one .csv per tile containing the bounding boxes
 total_count = 0
@@ -90,6 +107,7 @@ for csv_name in csv_names:
     i = 0
     tile_name = csv_name[0:-7]
     print('Reading tile: '+ tile_name,flush=True)
+    copyfile(dwt_path + tile_name + '_bb.csv',results_path + tile_name + '_bb.csv')
     csvfile_gt = open(gt_path + tile_name + '_polygons.csv', newline='')
     reader_gt = csv.reader(csvfile_gt)
     csvfile_dwt = open(dwt_path + tile_name + '_polygons.csv', newline='')
@@ -137,13 +155,14 @@ assert total_count == total_num, 'Different number of buildings found than expec
 ###########################################################################################
 def resample_images(inds):
     print('Resampling images...', flush=True)
-    for i in range(epoch_batch_size):
+    for i in range(len(inds)):
         this_im = scipy.misc.imread(images_path + all_building_names[inds[i]])
         images[:, :, :, i] = scipy.misc.imresize(this_im, [im_size, im_size])
         this_mask = scipy.misc.imread(gt_path + all_building_names[inds[i]])
         masks[:, :, 0, i] = scipy.misc.imresize(this_mask, [out_size, out_size], interp='nearest') > 0
         GT[:,:,i] = allGT[:,:,inds[i]]
         DWT[:, :, i] = allDWT[:, :, inds[i]]
+        building_names.append(all_building_names[i])
 
 
 ###########################################################################################
@@ -167,20 +186,7 @@ with tf.device('/cpu:0'):
     tf_u, tf_v, tf_du, tf_dv, tf_Du, tf_Dv, tf_u0, tf_v0, tf_du0, tf_dv0, \
     tf_alpha, tf_beta, tf_kappa = snake_graph(out_size, L,niter=niter)
 
-###########################################################################################
-#Prepare folder to save network and results
-###########################################################################################
-print('Loading model...',flush=True)
-if not os.path.isdir(results_path):
-    os.makedirs(results_path)
-start_epoch = 0
-assert os.path.isdir(model_path), 'No model found in the specified directory'
-modelnames = []
-modelnames += [each for each in os.listdir(model_path) if each.endswith('.net')]
-epoch = -1
-for s in modelnames:
-    epoch = max(int(s.split('-')[-1].split('.')[0]),epoch)
-start_epoch = epoch + 1
+
 
 
 ###########################################################################################
@@ -191,7 +197,7 @@ def epoch(n,i,mode):
     batch_ind = np.arange(i,i+batch_size)
     batch = np.float32(images[:, :, :, batch_ind])/255
     batch_mask = np.copy(masks[:, :, :, batch_ind])
-    thisNames = all_building_names[batch_ind[0]]
+    thisNames = building_names[batch_ind[0]]
     thisGT = np.copy(GT[:, :, batch_ind[0]])
     thisDWT = np.copy(DWT[:, :, batch_ind[0]])
     # prediction_np = sess.run(prediction,feed_dict={x:batch})
@@ -243,18 +249,23 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True,log_device_place
     init = tf.global_variables_initializer()
     sess.run(init)
     start_ind = 0
+    total_iter_count = 0
     total_batches = np.int32(np.ceil(total_num / epoch_batch_size))
+    iou_test = 0
     for n in range(total_batches):
         inds = np.arange(start_ind,np.minimum(total_num,start_ind+epoch_batch_size))
+        start_ind += epoch_batch_size
+        building_names = []
         resample_images(inds)
-        iou_test = 0
+
         iter_count = 0
 
         for i in range(len(inds)):
             iou_test += epoch(n,i, 'test')
             iter_count += 1
-            print('Test. Batch ' + str(n) + '. Iter ' + str(iter_count) + '/' + str(total_num) + ', IoU = %.4f' % (
-            iou_test / iter_count),flush=True)
+            total_iter_count += 1
+            print('Test. Batch ' + str(n) + '. Iter ' + str(total_iter_count) + '/' + str(total_num) + ', IoU = %.4f' % (
+            iou_test / total_iter_count),flush=True)
 
 
 

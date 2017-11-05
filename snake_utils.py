@@ -245,7 +245,7 @@ def batch_norm(x):
     beta = tf.Variable(tf.zeros(batch_mean.shape))
     return tf.nn.batch_normalization(x, batch_mean, batch_var, beta, scale, 1e-7)
 
-def CNN(im_size,out_size,L,batch_size=1,layers = 5):
+def CNN(im_size,out_size,L,batch_size=1,layers = 5, wd=0.001):
 
     #Input and output
     x = tf.placeholder(tf.float32, shape=[im_size, im_size, 3, batch_size])
@@ -257,13 +257,13 @@ def CNN(im_size,out_size,L,batch_size=1,layers = 5):
     h_conv = []
     h_pool = []
     resized_out = []
-    W_conv.append(weight_variable([3, 3, 3, 32], wd=0.001))
+    W_conv.append(weight_variable([3, 3, 3, 32], wd=wd))
     b_conv.append(bias_variable([32]))
     h_conv.append(tf.nn.relu(conv2d(x_image, W_conv[-1]) + b_conv[-1]))
     h_pool.append(batch_norm(max_pool_2x2(h_conv[-1])))
     resized_out.append(tf.image.resize_images(h_pool[-1], [out_size, out_size]))
     for layer in range(1,layers):
-        W_conv.append(weight_variable([3, 3, 32, 32],wd=0.001))
+        W_conv.append(weight_variable([3, 3, 32, 32],wd=wd))
         b_conv.append(bias_variable([32]))
         h_conv.append(tf.nn.relu(conv2d(h_pool[-1], W_conv[-1]) + b_conv[-1]))
         h_pool.append(batch_norm(max_pool_2x2(h_conv[-1])))
@@ -272,32 +272,32 @@ def CNN(im_size,out_size,L,batch_size=1,layers = 5):
     h_concat = tf.concat(resized_out,3)
 
     #Final conv layer
-    W_convf = weight_variable([1, 1, int(h_concat.shape[3]), 32],wd=0.001)
+    W_convf = weight_variable([1, 1, int(h_concat.shape[3]), 32],wd=wd)
     b_convf = bias_variable([32])
     h_convf = batch_norm(tf.nn.relu(conv2d(h_concat, W_convf) + b_convf))
 
     #Predict energy
-    W_fcE = weight_variable([1, 1, 32, 1],wd=0.001)
+    W_fcE = weight_variable([1, 1, 32, 1],wd=wd)
     b_fcE = bias_variable([1])
     h_fcE = conv2d(h_convf, W_fcE) + b_fcE
     G_filt = gaussian_filter((15,15), 2)
     predE = tf.reshape(conv2d(h_fcE,G_filt), [out_size, out_size, 1, -1])
 
     # Predict alpha
-    W_fcA = weight_variable([1, 1, 32, 1],wd=0.001)
+    W_fcA = weight_variable([1, 1, 32, 1],wd=wd)
     b_fcA = bias_variable([1])
     h_fcA = conv2d(h_convf, W_fcA) + b_fcA
     h_fcA = tf.log(1+tf.exp(tf.reduce_mean(h_fcA))) + h_fcA * 0
     # predA = tf.nn.softplus(tf.reshape(h_fcA,[im_size,im_size,1,-1]))
     predA = tf.reshape(h_fcA, [out_size, out_size, 1, -1])
     # Predict beta
-    W_fcB = weight_variable([1, 1, 32, 1],wd=0.001)
+    W_fcB = weight_variable([1, 1, 32, 1],wd=wd)
     b_fcB = bias_variable([1])
     h_fcB = conv2d(h_convf, W_fcB) + b_fcB
     #h_fcB = tf.log(1+tf.exp(h_fcB))
     predB = tf.reshape(h_fcB, [out_size, out_size, 1, -1])
     # Predict kappa
-    W_fcK = weight_variable([1, 1, 32, 1],wd=0.001)
+    W_fcK = weight_variable([1, 1, 32, 1],wd=wd)
     b_fcK = bias_variable([1])
     h_fcK = conv2d(h_convf, W_fcK) + b_fcK
     #h_fcK = tf.log(1+tf.exp(h_fcK))

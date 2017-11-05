@@ -16,10 +16,10 @@ import time
 
 print('Importing packages... done!',flush=True)
 
-model_path = 'models/tcity2/'
-do_plot = False
-only_test = False
-intoronto = True
+model_path = 'models/tcity1/'
+do_plot = True
+only_test = True
+intoronto = False
 epoch_batch_size = 1000
 
 def snake_process (mapE, mapA, mapB, mapK, init_snake):
@@ -56,7 +56,6 @@ L = 80
 batch_size = 1
 im_size = 384
 out_size = 192
-val_proportion = 0.2
 if intoronto:
     images_path = '/ais/dgx1/marcosdi/TCityBuildings/building_crops/'
     gt_path = '/ais/dgx1/marcosdi/TCityBuildings/building_crops_gt/'
@@ -74,8 +73,6 @@ files = os.listdir(images_path)
 csv_names = [f for f in files if f[-4:] == '.csv']
 png_names = [f for f in files if f[-4:] == '.png']
 total_num = len(png_names)
-train_ims = np.int32(np.floor((1-val_proportion)*epoch_batch_size))
-test_ims = np.int32(np.floor((val_proportion)*epoch_batch_size))
 images = np.zeros([im_size,im_size,3,epoch_batch_size],dtype=np.uint8)
 masks = np.zeros([out_size,out_size,1,epoch_batch_size],dtype=np.uint8)
 GT = np.zeros([L,2,epoch_batch_size])
@@ -137,10 +134,8 @@ assert total_count == total_num, 'Different number of buildings found than expec
 ###########################################################################################
 # DEFINE RESAMPLER TO ACTUALLY LOAD THE IMAGES
 ###########################################################################################
-def resample_images():
+def resample_images(inds):
     print('Resampling images...', flush=True)
-    all_inds = np.arange(total_num)
-    inds = all_inds[np.random.permutation(epoch_batch_size)]
     for i in range(epoch_batch_size):
         this_im = scipy.misc.imread(images_path + all_building_names[inds[i]])
         images[:, :, :, i] = scipy.misc.imresize(this_im, [im_size, im_size])
@@ -156,10 +151,10 @@ def resample_images():
 print('Creating CNN...',flush=True)
 with tf.device('/gpu:0'):
     tvars, grads, predE, predA, predB, predK, l2loss, grad_predE, \
-    grad_predA, grad_predB, grad_predK, grad_l2loss, x, y_ = CNN(im_size, out_size, L, batch_size=1,wd=0.01)
+    grad_predA, grad_predB, grad_predK, grad_l2loss, x, y_ = CNN(im_size, out_size, L, batch_size=1)
 
 #Initialize CNN
-optimizer = tf.train.AdamOptimizer(1e-5, epsilon=1e-7)
+optimizer = tf.train.AdamOptimizer(1e-6, epsilon=1e-7)
 apply_gradients = optimizer.apply_gradients(zip(grads, tvars))
 
 ###########################################################################################
@@ -174,20 +169,15 @@ with tf.device('/cpu:0'):
 ###########################################################################################
 #Prepare folder to save network
 ###########################################################################################
-print('Preparing model folder...',flush=True)
+print('Loading model...',flush=True)
 start_epoch = 0
-if not os.path.isdir(model_path):
-    os.makedirs(model_path)
-else:
-    modelnames = []
-    modelnames += [each for each in os.listdir(model_path) if each.endswith('.net')]
-    epoch = -1
-    for s in modelnames:
-        epoch = max(int(s.split('-')[-1].split('.')[0]),epoch)
-    start_epoch = epoch + 1
-
-# Add ops to save and restore all the variables.
-saver = tf.train.Saver()
+assert os.path.isdir(model_path), 'No model found in the specified directory'
+modelnames = []
+modelnames += [each for each in os.listdir(model_path) if each.endswith('.net')]
+epoch = -1
+for s in modelnames:
+    epoch = max(int(s.split('-')[-1].split('.')[0]),epoch)
+start_epoch = epoch + 1
 
 
 ###########################################################################################
@@ -198,6 +188,7 @@ def epoch(n,i,mode):
     batch_ind = np.arange(i,i+batch_size)
     batch = np.float32(images[:, :, :, batch_ind])/255
     batch_mask = np.copy(masks[:, :, :, batch_ind])
+    thisNames = all_building_names[batch_ind]
     thisGT = np.copy(GT[:, :, batch_ind[0]])
     thisDWT = np.copy(DWT[:, :, batch_ind[0]])
     if mode is 'train':
@@ -238,10 +229,10 @@ def epoch(n,i,mode):
 
         der1_GT, der2_GT = derivatives_poly(thisGT)
 
-        grads_arrayE = mapE * 0.01
-        grads_arrayA = mapA * 0.01
-        grads_arrayB = mapB * 0.01
-        grads_arrayK = mapK * 0.01
+        grads_arrayE = mapE * 0.001
+        grads_arrayA = mapA * 0.001
+        grads_arrayB = mapB * 0.001
+        grads_arrayK = mapK * 0.001
         grads_arrayE[:, :, 0, 0] -= draw_poly(snake, 1, [M, N],12) - draw_poly(thisGT, 1, [M, N],12)
         grads_arrayA[:, :, 0, 0] -= (np.mean(der1) - np.mean(der1_GT))
         grads_arrayB[:, :, 0, 0] -= (draw_poly(snake, der2, [M, N],12) - draw_poly(thisGT, der2_GT, [M, N],12))
@@ -269,45 +260,28 @@ def epoch(n,i,mode):
 
 
 ###########################################################################################
-# RUN THE TRAINING
+# RUN THE TESTING
 ###########################################################################################
 with tf.Session(config=tf.ConfigProto(allow_soft_placement=True,log_device_placement=True)) as sess:
     sess2 = tf.Session(config=tf.ConfigProto(allow_soft_placement=True,log_device_placement=True))
     save_path = tf.train.latest_checkpoint(model_path)
     init = tf.global_variables_initializer()
     sess.run(init)
-    if save_path is not None:
-        saver.restore(sess,save_path)
-        start_epoch = int(save_path.split('-')[-1].split('.')[0])+1
-
-    for n in range(start_epoch,500):
-        resample_images()
+    start_ind = 0
+    total_batches = np.ceil(total_num / epoch_batch_size)
+    for n in range(total_batches):
+        inds = np.arange(start_ind,np.maximum(total_num,start_ind+epoch_batch_size))
+        resample_images(inds)
         iou_test = 0
-        iou_train = 0
         iter_count = 0
-        if not only_test:
-            for i in range(0,train_ims,batch_size):
-                #print(i)
-                #Do CNN inference
-                iou_train += epoch(n,i,'train')
-                iter_count += 1
-                print('Train. Epoch ' + str(n) + '. Iter ' + str(iter_count) + '/' + str(train_ims) + ', IoU = %.4f' % (
-                iou_train / iter_count),flush=True)
-            iou_train /= train_ims
-            saver.save(sess,model_path+'model', global_step=n)
 
-        iter_count = 0
-        for i in range(train_ims,train_ims+test_ims):
+        for i in range(len(inds)):
             iou_test += epoch(n,i, 'test')
             iter_count += 1
-            print('Test. Epoch ' + str(n) + '. Iter ' + str(iter_count) + '/' + str(test_ims) + ', IoU = %.4f' % (
+            print('Test. Batch ' + str(n) + '. Iter ' + str(iter_count) + '/' + str(total_num) + ', IoU = %.4f' % (
             iou_test / iter_count),flush=True)
-        if not only_test:
-            iou_test /= test_ims
-            iou_csvfile = open(model_path + 'iuo_train_test.csv', 'a', newline='')
-            iou_writer = csv.writer(iou_csvfile)
-            iou_writer.writerow([n,iou_train,iou_test])
-            iou_csvfile.close()
+
+
 
 
 

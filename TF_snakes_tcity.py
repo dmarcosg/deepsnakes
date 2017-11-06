@@ -240,11 +240,11 @@ def epoch(n,i,mode):
         der1_GT, der2_GT = derivatives_poly(thisGT)
 
         grads_arrayE = mapE * 0.01
-        grads_arrayA = mapA * 0.2
+        grads_arrayA = mapA * 0.01
         grads_arrayB = mapB * 0.01
         grads_arrayK = mapK * 0.01
         grads_arrayE[:, :, 0, 0] -= draw_poly(snake, 1, [M, N],12) - draw_poly(thisGT, 1, [M, N],12)
-        grads_arrayA[:, :, 0, 0] -= (np.mean(der1) - np.mean(der1_GT))
+        grads_arrayA[:, :, 0, 0] -= (np.mean(der1) - np.mean(der1_GT))*0.01
         grads_arrayB[:, :, 0, 0] -= (draw_poly(snake, der2, [M, N],12) - draw_poly(thisGT, der2_GT, [M, N],12))
         mask_gt = draw_poly_fill(thisGT, [M, N])
         mask_snake = draw_poly_fill(snake, [M, N])

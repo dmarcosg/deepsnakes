@@ -1,4 +1,4 @@
-intoronto = false;
+intoronto = true;
 
 if intoronto
     crops_path = '/ais/dgx1/marcosdi/TCityBuildings/results1';

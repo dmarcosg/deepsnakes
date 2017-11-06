@@ -1,4 +1,4 @@
-intoronto = false;
+intoronto = true;
 
 crops_path = 'building_crops_gt';
 result_path = 'result_binary';
@@ -25,6 +25,7 @@ for num = 1:numel(bb_names)
         crop = imread(fullfile(crops_path,crop_names(i).name));
         crop = imresize(crop,bb(i,[4 3]),'nearest');
         prev_crop = im(bb(i,2):bb(i,2)+bb(i,4)-1,bb(i,1):bb(i,1)+bb(i,3)-1);
+        disp(sum(crop(:)>0));
         prev_crop(crop(:)>0) = i;
         im(bb(i,2):bb(i,2)+bb(i,4)-1,bb(i,1):bb(i,1)+bb(i,3)-1) = prev_crop;
     end

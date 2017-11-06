@@ -16,9 +16,9 @@ import time
 
 print('Importing packages... done!',flush=True)
 
-model_path = 'models/tcity2/'
+model_path = 'models/tcity1/'
 do_plot = False
-only_test = False
+only_test = do_plot
 intoronto = True
 epoch_batch_size = 1000
 
@@ -156,10 +156,10 @@ def resample_images():
 print('Creating CNN...',flush=True)
 with tf.device('/gpu:0'):
     tvars, grads, predE, predA, predB, predK, l2loss, grad_predE, \
-    grad_predA, grad_predB, grad_predK, grad_l2loss, x, y_ = CNN(im_size, out_size, L, batch_size=1,wd=0.01)
+    grad_predA, grad_predB, grad_predK, grad_l2loss, x, y_ = CNN(im_size, out_size, L, batch_size=1,wd=0.01,layers=6)
 
 #Initialize CNN
-optimizer = tf.train.AdamOptimizer(1e-6, epsilon=1e-7)
+optimizer = tf.train.AdamOptimizer(1e-5, epsilon=1e-7)
 apply_gradients = optimizer.apply_gradients(zip(grads, tvars))
 
 ###########################################################################################
@@ -220,6 +220,7 @@ def epoch(n,i,mode):
         thisDWT = np.maximum(thisDWT, 0)
     # prediction_np = sess.run(prediction,feed_dict={x:batch})
     [mapE, mapA, mapB, mapK, l2] = sess.run([predE, predA, predB, predK, l2loss], feed_dict={x: batch})
+    mapA = np.maximum(mapA, 0)
     mapB = np.maximum(mapB, 0)
     mapK = np.maximum(mapK, 0)
     #print('%.2f' % (time.time() - tic) + ' s tf inference')

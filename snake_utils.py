@@ -267,14 +267,20 @@ def CNN(im_size,out_size,L,batch_size=1,layers = 5, wd=0.001):
         b_conv.append(bias_variable([32]))
         h_conv.append(tf.nn.relu(conv2d(h_pool[-1], W_conv[-1]) + b_conv[-1]))
         h_pool.append(batch_norm(max_pool_2x2(h_conv[-1])))
-        resized_out.append(tf.image.resize_images(h_conv[-1], [out_size, out_size]))
+        if layer > layers - 3:
+            resized_out.append(tf.image.resize_images(h_conv[-1], [out_size, out_size]))
 
     h_concat = tf.concat(resized_out,3)
 
+    # MLP for dimension reduction
+    W_convd = weight_variable([1, 1, int(h_concat.shape[3]), 32], wd=wd)
+    b_convd = bias_variable([32])
+    h_convd = batch_norm(tf.nn.relu(conv2d(h_concat, W_convd) + b_convd))
+
     #Final conv layer
-    W_convf = weight_variable([1, 1, int(h_concat.shape[3]), 32],wd=wd)
+    W_convf = weight_variable([3, 3, 32, 32],wd=wd)
     b_convf = bias_variable([32])
-    h_convf = batch_norm(tf.nn.relu(conv2d(h_concat, W_convf) + b_convf))
+    h_convf = batch_norm(tf.nn.relu(conv2d(h_convd, W_convf) + b_convf))
 
     #Predict energy
     W_fcE = weight_variable([1, 1, 32, 1],wd=wd)
@@ -287,7 +293,7 @@ def CNN(im_size,out_size,L,batch_size=1,layers = 5, wd=0.001):
     W_fcA = weight_variable([1, 1, 32, 1],wd=wd)
     b_fcA = bias_variable([1])
     h_fcA = conv2d(h_convf, W_fcA) + b_fcA
-    h_fcA = tf.log(1+tf.exp(tf.reduce_mean(h_fcA))) + h_fcA * 0
+    h_fcA = tf.reduce_mean(h_fcA) + h_fcA * 0
     # predA = tf.nn.softplus(tf.reshape(h_fcA,[im_size,im_size,1,-1]))
     predA = tf.reshape(h_fcA, [out_size, out_size, 1, -1])
     # Predict beta
@@ -327,7 +333,7 @@ def snake_graph(out_size,L,niter=100):
     tf_dv0 = tf.placeholder(tf.float32, shape=[L, 1])
     gamma = tf.constant(1, dtype=tf.float32)
     max_px_move = tf.constant(1, dtype=tf.float32)
-    delta_s = tf.constant(60 / L, dtype=tf.float32)
+    delta_s = tf.constant(out_size / L, dtype=tf.float32)
 
     tf_u = tf_u0
     tf_du = tf_du0

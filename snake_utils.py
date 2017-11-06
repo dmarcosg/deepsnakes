@@ -231,8 +231,8 @@ def bias_variable(shape):
     return tf.Variable(initial)
 
 
-def conv2d(x, W):
-    return tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='SAME')
+def conv2d(x, W, padding='SAME'):
+    return tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding=padding)
 
 
 def max_pool_2x2(x):
@@ -259,12 +259,12 @@ def CNN(im_size,out_size,L,batch_size=1,layers = 5, wd=0.001):
     resized_out = []
     W_conv.append(weight_variable([3, 3, 3, 32], wd=wd))
     b_conv.append(bias_variable([32]))
-    h_conv.append(tf.nn.relu(conv2d(x_image, W_conv[-1]) + b_conv[-1]))
+    h_conv.append(tf.nn.relu(conv2d(x_image, W_conv[-1],padding='VALID') + b_conv[-1]))
     h_pool.append(batch_norm(max_pool_2x2(h_conv[-1])))
     for layer in range(1,layers):
         W_conv.append(weight_variable([3, 3, 32, 32],wd=wd))
         b_conv.append(bias_variable([32]))
-        h_conv.append(tf.nn.relu(conv2d(h_pool[-1], W_conv[-1]) + b_conv[-1]))
+        h_conv.append(tf.nn.relu(conv2d(h_pool[-1], W_conv[-1],padding='VALID') + b_conv[-1]))
         h_pool.append(batch_norm(max_pool_2x2(h_conv[-1])))
         if layer > layers - 3:
             resized_out.append(tf.image.resize_images(h_conv[-1], [out_size, out_size]))

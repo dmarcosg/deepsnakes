@@ -1,11 +1,8 @@
 intoronto = true;
 
-crops_path = 'building_crops_gt';
-result_path = 'result_binary';
-
 if intoronto
-    crops_path = '/ais/dgx1/marcosdi/TCityBuildings/building_crops';
-    result_path = '/ais/dgx1/marcosdi/TCityBuildings/results_val';
+    crops_path = '/ais/dgx1/marcosdi/TCityBuildings/results1';
+    result_path = '~/deepsnakes/results_val';
 else
     crops_path = '/home/diego/PycharmProjects/snakes_prj/deepsnakes/results/tcity1';
     result_path = '/home/diego/PycharmProjects/snakes_prj/deepsnakes/results/tcity1/val_tiles';

@@ -2,7 +2,7 @@ intoronto = true;
 
 if intoronto
     crops_path = '/ais/dgx1/marcosdi/TCityBuildings/results1';
-    result_path = '~/deepsnakes/results_val';
+    result_path = '/ais/dgx1/marcosdi/TCityBuildings/results_val';
 else
     crops_path = '/home/diego/PycharmProjects/snakes_prj/deepsnakes/results/tcity1';
     result_path = '/home/diego/PycharmProjects/snakes_prj/deepsnakes/results/tcity1/val_tiles';

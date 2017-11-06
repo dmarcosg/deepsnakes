@@ -1,4 +1,4 @@
-intoronto = true;
+intoronto = false;
 
 if intoronto
     crops_path = '/ais/dgx1/marcosdi/TCityBuildings/results1';
@@ -22,6 +22,7 @@ for num = 1:numel(bb_names)
     for i = 1:size(bb,1)
         crop = imread(fullfile(crops_path,crop_names(i).name));
         crop = crop(:,:,1);
+        crop = imfill(crop,'holes');
         crop = imresize(crop,bb(i,[4 3]),'nearest');
         try
             prev_crop = im(bb(i,2):bb(i,2)+bb(i,4)-1,bb(i,1):bb(i,1)+bb(i,3)-1);

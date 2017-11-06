@@ -7,8 +7,8 @@ if intoronto
     crops_path = '/ais/dgx1/marcosdi/TCityBuildings/building_crops';
     result_path = '/ais/dgx1/marcosdi/TCityBuildings/building_crops_gt';
 else
-    crops_path = '/home/diego/PycharmProjects/snakes_prj/deepsnakes/results/tcity1';
-    result_path = '/home/diego/PycharmProjects/snakes_prj/deepsnakes/results/tcity1/tile';
+    crops_path = '/ais/dgx1/marcosdi/TCityBuildings/results1';
+    result_path = '/ais/dgx1/marcosdi/TCityBuildings/results1/val_tiles';
 end
 
 try

@@ -1,6 +1,6 @@
 margin = 0.8;
 s = 384;
-minsize = 15; % minimum size of the dwt proposal, in pixels
+minsize = 20; % minimum size of the dwt proposal, in pixels
 training = false;
 doplot = false;
 intoronto = true;
@@ -39,7 +39,7 @@ if training
     dwts = dir(fullfile(dwt_path,'*_binary.png'));
 else
     ims = dir(fullfile(ims_path,'*.png'));
-    dwts = dir(fullfile(dwt_path,'*_binary.png'));
+    dwts = dir(fullfile(dwt_path,'_binary.png'));
 end
 
 try
@@ -60,7 +60,11 @@ for num = 1:numel(ims)
     data_dwt = [];
     bounding_boxes = [];
     count = 1;
-    imname = strsplit(ims(num).name,'_0.png');
+    if training
+        imname = strsplit(ims(num).name,'_0.png');
+    else
+        imname = strsplit(ims(num).name,'.png');
+    end
     imname = imname{1};
     % read images and get instances
     try
@@ -143,6 +147,9 @@ for num = 1:numel(ims)
         [ps_dwt,ix_dwt] = dpsimplify(B_dwt{1},6);
         data_dwt(count,1) = double(size(ps_dwt,1));
         pst = ps_dwt';
+        if size(ps_dwt,1) <= 3
+            continue;
+        end
         pst = pst(:);
         for j = 1:numel(pst)
             data_dwt(count,1+j) = pst(j);

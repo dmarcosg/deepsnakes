@@ -18,7 +18,7 @@ from shutil import copyfile
 print('Importing packages... done!',flush=True)
 
 model_path = 'models/tcity1/'
-results_path = 'results/tcity1/'
+results_path = '/ais/dgx1/marcosdi/TCityBuildings/results1/'
 do_plot = True
 do_write_results = True
 intoronto = True

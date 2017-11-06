@@ -1,4 +1,4 @@
-intoronto = false;
+intoronto = true;
 
 crops_path = 'building_crops_gt';
 result_path = 'result_binary';

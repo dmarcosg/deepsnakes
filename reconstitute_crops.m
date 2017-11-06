@@ -16,6 +16,7 @@ mkdir(result_path);
 bb_names = dir(fullfile(crops_path,'*_bb.csv'));
 imsize = [5000 5000];
 for num = 1:numel(bb_names)
+    disp(['Doing tile ', bb_names(num).name]);
     im = uint16(zeros(imsize));
     imname = strsplit(bb_names(num).name,'_bb.csv');
     imname = imname{1};
@@ -25,7 +26,12 @@ for num = 1:numel(bb_names)
         crop = imread(fullfile(crops_path,crop_names(i).name));
         crop = crop(:,:,1);
         crop = imresize(crop,bb(i,[4 3]),'nearest');
-        prev_crop = im(bb(i,2):bb(i,2)+bb(i,4)-1,bb(i,1):bb(i,1)+bb(i,3)-1);
+        try
+            prev_crop = im(bb(i,2):bb(i,2)+bb(i,4)-1,bb(i,1):bb(i,1)+bb(i,3)-1);
+        catch
+            disp('Bad bounding box');
+            continue;
+        end
         prev_crop(crop(:)>0) = i;
         im(bb(i,2):bb(i,2)+bb(i,4)-1,bb(i,1):bb(i,1)+bb(i,3)-1) = prev_crop;
     end

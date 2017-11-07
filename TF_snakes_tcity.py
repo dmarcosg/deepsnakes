@@ -53,7 +53,7 @@ def snake_process (mapE, mapA, mapB, mapK, init_snake):
 
 
 #Load data
-L = 80
+L = 60
 batch_size = 1
 im_size = 384
 out_size = 192

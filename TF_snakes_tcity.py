@@ -20,8 +20,8 @@ model_path = 'models/tcity_full2/'
 do_plot = False
 only_test = False
 intoronto = True
-epoch_batch_size = 100
-val_proportion = 1
+epoch_batch_size = 1000
+val_proportion = 0.2
 
 def snake_process (mapE, mapA, mapB, mapK, init_snake):
 

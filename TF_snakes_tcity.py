@@ -234,13 +234,13 @@ def epoch(n,i,mode):
         thisDWT = np.maximum(thisDWT, 0)
     # prediction_np = sess.run(prediction,feed_dict={x:batch})
     [mapE, mapA, mapB, mapK, l2] = sess.run([predE, predA, predB, predK, l2loss], feed_dict={x: batch})
-    mapA = np.maximum(mapA, 0)
-    mapB = np.maximum(mapB, 0)
-    mapK = np.maximum(mapK, 0)
-    #print('%.2f' % (time.time() - tic) + ' s tf inference')
+
     if mode is 'train':
         for j in range(mapK.shape[3]):
             mapK[:, :, 0, j] -= batch_mask[:, :, 0, j] * 0.5 - 0.5 / 2
+    mapA = np.maximum(mapA, 0)
+    mapB = np.maximum(mapB, 0)
+    mapK = np.maximum(mapK, 0)
     # Do snake inference
     for j in range(batch_size):
         init_snake = thisDWT

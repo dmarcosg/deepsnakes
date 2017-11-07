@@ -16,7 +16,7 @@ import time
 
 print('Importing packages... done!',flush=True)
 
-model_path = 'models/tcity_full1/'
+model_path = 'models/tcity_full2/'
 do_plot = False
 only_test = do_plot
 intoronto = True

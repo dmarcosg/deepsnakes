@@ -10,7 +10,7 @@ from skimage.filters import gaussian
 import scipy
 import time
 
-model_path = 'models/bing2/'
+model_path = 'models/bing1/'
 do_plot = True
 train_ims = 400
 test_ims = 205
@@ -75,20 +75,23 @@ GT = np.maximum(GT,0)
 ###########################################################################################
 # DEFINE CNN ARCHITECTURE
 ###########################################################################################
+print('Creating CNN...',flush=True)
 with tf.device('/gpu:0'):
     tvars, grads, predE, predA, predB, predK, l2loss, grad_predE, \
-    grad_predA, grad_predB, grad_predK, grad_l2loss, x, y_ = CNN(im_size, out_size, L, batch_size=1, layers=3)
+    grad_predA, grad_predB, grad_predK, grad_l2loss, x, y_ = CNN(im_size, out_size, L, batch_size=1,wd=0.01,layers=3)
 
 #Initialize CNN
-optimizer = tf.train.AdamOptimizer(1e-4, epsilon=1e-7)
+optimizer = tf.train.AdamOptimizer(1e-5, epsilon=1e-7)
 apply_gradients = optimizer.apply_gradients(zip(grads, tvars))
 
 ###########################################################################################
 # DEFINE SNAKE INFERENCE
 ###########################################################################################
+niter = 50
+print('Creating snake inference graph...',flush=True)
 with tf.device('/cpu:0'):
     tf_u, tf_v, tf_du, tf_dv, tf_Du, tf_Dv, tf_u0, tf_v0, tf_du0, tf_dv0, \
-    tf_alpha, tf_beta, tf_kappa = snake_graph(out_size, L)
+    tf_alpha, tf_beta, tf_kappa = snake_graph(out_size, L,niter=niter)
 
 ###########################################################################################
 #Prepare folder to save network
@@ -132,6 +135,7 @@ def epoch(n,i,mode):
         thisGT = np.maximum(thisGT, 0)
     # prediction_np = sess.run(prediction,feed_dict={x:batch})
     [mapE, mapA, mapB, mapK, l2] = sess.run([predE, predA, predB, predK, l2loss], feed_dict={x: batch})
+    mapA = np.maximum(mapA, 0)
     mapB = np.maximum(mapB, 0)
     mapK = np.maximum(mapK, 0)
     #print('%.2f' % (time.time() - tic) + ' s tf inference')
@@ -155,12 +159,12 @@ def epoch(n,i,mode):
 
         der1_GT, der2_GT = derivatives_poly(thisGT)
 
-        grads_arrayE = mapE * 0.001
-        grads_arrayA = mapA * 0.001
-        grads_arrayB = mapB * 0.001
-        grads_arrayK = mapK * 0.001
+        grads_arrayE = mapE * 0.01
+        grads_arrayA = mapA * 0.1
+        grads_arrayB = mapB * 0.01
+        grads_arrayK = mapK * 0.01
         grads_arrayE[:, :, 0, 0] -= draw_poly(snake, 1, [M, N],4) - draw_poly(thisGT, 1, [M, N],4)
-        grads_arrayA[:, :, 0, 0] -= (np.mean(der1) - np.mean(der1_GT))
+        grads_arrayA[:, :, 0, 0] -= (np.mean(der1) - np.mean(der1_GT))*0.01
         grads_arrayB[:, :, 0, 0] -= (draw_poly(snake, der2, [M, N],4) - draw_poly(thisGT, der2_GT, [M, N],4))
         mask_gt = draw_poly_fill(thisGT, [M, N])
         mask_snake = draw_poly_fill(snake, [M, N])
@@ -178,7 +182,7 @@ def epoch(n,i,mode):
         #print('IoU = %.2f' % (iou))
     #if mode is 'test':
         #print('IoU = %.2f' % (iou))
-    if do_plot and n >=35  and mode is 'test':
+    if do_plot and n >=1000  and mode is 'test':
         plot_snakes(snake, snake_hist, thisGT, mapE, np.maximum(mapA, 0), np.maximum(mapB, 0), mapK, \
                 grads_arrayE, grads_arrayA, grads_arrayB, grads_arrayK, batch, batch_mask)
         #plt.show()
@@ -197,7 +201,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True,log_device_place
         saver.restore(sess,save_path)
         start_epoch = int(save_path.split('-')[-1].split('.')[0])+1
 
-    for n in range(start_epoch,45):
+    for n in range(start_epoch,1001):
         iou_test = 0
         iou_train = 0
         iter_count = 0

@@ -18,9 +18,10 @@ print('Importing packages... done!',flush=True)
 
 model_path = 'models/tcity_full2/'
 do_plot = False
-only_test = do_plot
+only_test = False
 intoronto = True
-epoch_batch_size = 1000
+epoch_batch_size = 100
+val_proportion = 1
 
 def snake_process (mapE, mapA, mapB, mapK, init_snake):
 
@@ -56,7 +57,6 @@ L = 80
 batch_size = 1
 im_size = 384
 out_size = 192
-val_proportion = 0.2
 if intoronto:
     images_path = '/ais/dgx1/marcosdi/TCityBuildings/building_crops/'
     gt_path = '/ais/dgx1/marcosdi/TCityBuildings/building_crops_gt/'
@@ -85,6 +85,7 @@ allGT = np.zeros([L,2,total_num])
 allDWT = np.zeros([L,2,total_num])
 
 all_building_names = []
+all_building_sizes = []
 
 # For each TCity tile, since there's one .csv per tile containing the bounding boxes
 total_count = 0
@@ -96,10 +97,13 @@ for csv_name in csv_names:
     reader_gt = csv.reader(csvfile_gt)
     csvfile_dwt = open(dwt_path + tile_name + '_polygons.csv', newline='')
     reader_dwt = csv.reader(csvfile_dwt)
+    csvfile_bb = open(gt_path + tile_name + '_bb.csv', newline='')
+    reader_bb = csv.reader(csvfile_bb)
     while True:
         try:
             corners_gt = reader_gt.__next__()
             corners_dwt = reader_dwt.__next__()
+            bb = reader_bb.__next__()
         except:
             print('Buildings loaded: '+str(i)+', total: '+str(total_count),flush=True)
             break
@@ -123,6 +127,7 @@ for csv_name in csv_names:
             allDWT[:, :, total_count] = allDWT[::-1, :, total_count]
         # Get image and GT mask
         all_building_names.append(tile_name + '_building_' + str(i + 1).zfill(4) + '.png')
+        all_building_sizes.append((np.float32(bb[2])+np.float32(bb[3]))/2)
         i += 1
         total_count += 1
 
@@ -130,6 +135,14 @@ allGT = np.minimum(allGT,out_size-1)
 allGT = np.maximum(allGT,0)
 allDWT = np.minimum(allDWT,out_size-1)
 allDWT = np.maximum(allDWT,0)
+
+all_relative_sizes = np.stack(all_building_sizes) / min(np.stack(all_building_sizes))
+all_relative_sizes = np.int32(np.ceil(all_relative_sizes))
+weighted_inds = []
+for i in range(total_num):
+    weighted_inds.append(np.ones([all_relative_sizes[i]],dtype=np.int32)*i)
+weighted_inds = np.concatenate(weighted_inds)
+
 
 assert total_count == total_num, 'Different number of buildings found than expected!'
 
@@ -139,7 +152,7 @@ assert total_count == total_num, 'Different number of buildings found than expec
 ###########################################################################################
 def resample_images():
     print('Resampling images...', flush=True)
-    all_inds = np.random.permutation(total_num)
+    all_inds = np.random.permutation(weighted_inds)
     inds = all_inds[np.arange(epoch_batch_size)]
     for i in range(epoch_batch_size):
         this_im = scipy.misc.imread(images_path + all_building_names[inds[i]])

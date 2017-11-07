@@ -140,7 +140,10 @@ all_relative_sizes = np.stack(all_building_sizes) / min(np.stack(all_building_si
 all_relative_sizes = np.int32(np.ceil(all_relative_sizes))
 weighted_inds = []
 for i in range(total_num):
-    weighted_inds.append(np.ones([all_relative_sizes[i]],dtype=np.int32)*i)
+    mult = np.maximum(1,all_relative_sizes[i]-5)
+    if mult > 1:
+        mult = np.int32(mult*2)
+    weighted_inds.append(np.ones([mult],dtype=np.int32)*i)
 weighted_inds = np.concatenate(weighted_inds)
 
 

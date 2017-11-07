@@ -1,7 +1,7 @@
 margin = 0.8;
 s = 384;
 minsize = 20; % minimum size of the dwt proposal, in pixels
-training = false;
+training = true;
 doplot = false;
 intoronto = true;
 

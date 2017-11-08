@@ -8,11 +8,12 @@ import os
 intoronto = True
 
 if intoronto:
-    geojson_path = "/mnt/bighd/Data/TorontoCityTile/"
-    output_path = "/mnt/bighd/Data/TorontoCityTile/"
-else:
     geojson_path = "/ais/gobi4/TorontoCity/test/shenlong/improved_gt_train/"
     output_path = "/ais/gobi4/TorontoCity/test/shenlong/improved_gt_train/"
+else:
+    geojson_path = "/mnt/bighd/Data/TorontoCityTile/"
+    output_path = "/mnt/bighd/Data/TorontoCityTile/"
+
 
 
 input_postfix = "_buildings"

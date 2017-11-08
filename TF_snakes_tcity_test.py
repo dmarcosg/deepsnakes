@@ -17,11 +17,10 @@ from shutil import copyfile
 
 print('Importing packages... done!',flush=True)
 
-model_path = 'models/tcity_full2/'
-results_path = '/ais/dgx1/marcosdi/TCityBuildings/results2/crops/'
+
 do_plot = True
 do_write_results = True
-intoronto = True
+intoronto = False
 epoch_batch_size = 1000
 
 def snake_process (mapE, mapA, mapB, mapK, init_snake):
@@ -62,10 +61,16 @@ if intoronto:
     images_path = '/ais/dgx1/marcosdi/TCityBuildings/val_building_crops/'
     #gt_path = '/ais/dgx1/marcosdi/TCityBuildings/building_crops_gt/'
     dwt_path = '/ais/dgx1/marcosdi/TCityBuildings/val_building_crops_dwt/'
+    model_path = 'models/tcity_full2/'
+    results_path = '/ais/dgx1/marcosdi/TCityBuildings/results2/crops/'
 else:
     images_path = '/mnt/bighd/Data/TorontoCityTile/building_crops/'
     gt_path = '/mnt/bighd/Data/TorontoCityTile/building_crops_gt/'
     dwt_path = '/mnt/bighd/Data/TorontoCityTile/building_crops_dwt/'
+    model_path = 'models/tcity_full1/'
+    results_path = '/mnt/bighd/Data/TorontoCityTile/results2/crops/'
+
+
 
 ###########################################################################################
 #Prepare folder to save network and results
@@ -73,6 +78,10 @@ else:
 print('Loading model...',flush=True)
 if not os.path.isdir(results_path):
     os.makedirs(results_path)
+else:
+    os.rmdir(results_path)
+    os.makedirs(results_path)
+
 start_epoch = 0
 assert os.path.isdir(model_path), 'No model found in the specified directory'
 modelnames = []
@@ -199,6 +208,7 @@ def epoch(n,i,mode):
     batch = np.float32(images[:, :, :, batch_ind])/255
     #batch_mask = np.copy(masks[:, :, :, batch_ind])
     thisNames = building_names[batch_ind[0]]
+    base_name = thisNames.split('_')[0]+'_'+thisNames.split('_')[1]
     #thisGT = np.copy(GT[:, :, batch_ind[0]])
     thisDWT = np.copy(DWT[:, :, batch_ind[0]])
     # prediction_np = sess.run(prediction,feed_dict={x:batch})
@@ -238,6 +248,10 @@ def epoch(n,i,mode):
         #plt.show()
     if do_write_results:
         scipy.misc.imsave(results_path+thisNames,scipy.misc.imresize(mask_snake,[im_size,im_size],interp='nearest'))
+        f = open(base_name+'_polygons.csv', 'a', newline='')
+        writer = csv.writer(f)
+        writer.writerow([L,snake[-1]])
+        f.close()
     return
 
 

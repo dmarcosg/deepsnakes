@@ -16,7 +16,7 @@ import time
 
 print('Importing packages... done!',flush=True)
 
-model_path = 'models/tcity_full2/'
+model_path = 'models/tcity_full3/'
 do_plot = False
 only_test = False
 intoronto = True
@@ -295,7 +295,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True,log_device_place
         saver.restore(sess,save_path)
         start_epoch = int(save_path.split('-')[-1].split('.')[0])+1
 
-    for n in range(start_epoch,500):
+    for n in range(start_epoch,1000):
         resample_images()
         iou_test = 0
         iou_train = 0

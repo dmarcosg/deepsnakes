@@ -58,9 +58,9 @@ batch_size = 1
 im_size = 384
 out_size = 192
 if intoronto:
-    images_path = '/ais/dgx1/marcosdi/TCityBuildings/building_crops/'
-    gt_path = '/ais/dgx1/marcosdi/TCityBuildings/building_crops_gt/'
-    dwt_path = '/ais/dgx1/marcosdi/TCityBuildings/building_crops_dwt/'
+    images_path = '/ais/dgx1/marcosdi/TCityBuildings_improved/building_crops/'
+    gt_path = '/ais/dgx1/marcosdi/TCityBuildings_improved/building_crops_gt/'
+    dwt_path = '/ais/dgx1/marcosdi/TCityBuildings_improved/building_crops_dwt/'
 else:
     images_path = '/mnt/bighd/Data/TorontoCityTile/building_crops/'
     gt_path = '/mnt/bighd/Data/TorontoCityTile/building_crops_gt/'

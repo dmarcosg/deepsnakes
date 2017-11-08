@@ -105,7 +105,7 @@ for csv_name in csv_names:
     i = 0
     tile_name = csv_name[0:-7]
     print('Reading tile: '+ tile_name,flush=True)
-    copyfile(dwt_path + tile_name + '_bb.csv',results_path + tile_name + '_bb.csv')
+    #copyfile(dwt_path + tile_name + '_bb.csv',results_path + tile_name + '_bb.csv')
     csvfile_bb = open(dwt_path + tile_name + '_bb.csv', newline='')
     reader_bb = csv.reader(csvfile_bb)
     csvfile_dwt = open(dwt_path + tile_name + '_polygons.csv', newline='')

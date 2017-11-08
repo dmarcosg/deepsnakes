@@ -250,7 +250,7 @@ def batch_norm(x):
     beta = tf.Variable(tf.zeros(batch_mean.shape))
     return tf.nn.batch_normalization(x, batch_mean, batch_var, beta, scale, 1e-7)
 
-def CNN(im_size,out_size,L,batch_size=1,layers = 5, wd=0.001):
+def CNN(im_size,out_size,L,batch_size=1,layers = 5, wd=0.001, numfilt=0):
 
     #Input and output
     x = tf.placeholder(tf.float32, shape=[im_size, im_size, 3, batch_size])
@@ -267,7 +267,7 @@ def CNN(im_size,out_size,L,batch_size=1,layers = 5, wd=0.001):
     h_conv.append(tf.nn.relu(conv2d(x_image, W_conv[-1],padding='VALID') + b_conv[-1]))
     h_pool.append(batch_norm(max_pool_2x2(h_conv[-1])))
     for layer in range(1,layers):
-        W_conv.append(weight_variable([3, 3, 32, 32],wd=wd))
+        W_conv.append(weight_variable([3, 3, 32+(layer-1)*numfilt, 32+layer*numfilt],wd=wd))
         b_conv.append(bias_variable([32]))
         h_conv.append(tf.nn.relu(conv2d(h_pool[-1], W_conv[-1],padding='VALID') + b_conv[-1]))
         h_pool.append(batch_norm(max_pool_2x2(h_conv[-1])))
@@ -277,12 +277,12 @@ def CNN(im_size,out_size,L,batch_size=1,layers = 5, wd=0.001):
     h_concat = tf.concat(resized_out,3)
 
     # MLP for dimension reduction
-    W_convd = weight_variable([1, 1, int(h_concat.shape[3]), 32], wd=wd)
+    W_convd = weight_variable([1, 1, int(h_concat.shape[3]), 32+2*numfilt], wd=wd)
     b_convd = bias_variable([32])
     h_convd = batch_norm(tf.nn.relu(conv2d(h_concat, W_convd) + b_convd))
 
     #Final conv layer
-    W_convf = weight_variable([3, 3, 32, 32],wd=wd)
+    W_convf = weight_variable([1, 1, 32+2*numfilt, 32],wd=wd)
     b_convf = bias_variable([32])
     h_convf = batch_norm(tf.nn.relu(conv2d(h_convd, W_convf) + b_convf))
 

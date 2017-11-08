@@ -16,7 +16,7 @@ import time
 
 print('Importing packages... done!',flush=True)
 
-model_path = 'models/tcity_full3/'
+model_path = 'models/tcity_full4/'
 do_plot = False
 only_test = False
 intoronto = True
@@ -54,6 +54,7 @@ def snake_process (mapE, mapA, mapB, mapK, init_snake):
 
 #Load data
 L = 60
+numfilt = 16 #filters to add per layer on top of the standard 32
 batch_size = 1
 im_size = 384
 out_size = 192
@@ -170,7 +171,8 @@ def resample_images():
 print('Creating CNN...',flush=True)
 with tf.device('/gpu:0'):
     tvars, grads, predE, predA, predB, predK, l2loss, grad_predE, \
-    grad_predA, grad_predB, grad_predK, grad_l2loss, x, y_ = CNN(im_size, out_size, L, batch_size=1,wd=0.01,layers=6)
+    grad_predA, grad_predB, grad_predK, grad_l2loss, x, y_ = CNN(im_size, out_size, L,
+                                                                 batch_size=1,wd=0.01,layers=6,numfilt=numfilt)
 
 #Initialize CNN
 optimizer = tf.train.AdamOptimizer(1e-5, epsilon=1e-7)

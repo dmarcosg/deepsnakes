@@ -92,7 +92,7 @@ for num = 1:numel(ims)
     assert(sum((stats{1:end,'MeanIntensity'}' ~= (1:size(stats,1))))==0);
     
     % for each instance in the dwt
-    for i = 34:size(stats,1)
+    for i = 1:size(stats,1)
         bb = stats{i,'BoundingBox'};
         m = mean(bb(3:4))*margin;
         % skip if too small object

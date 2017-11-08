@@ -10,7 +10,8 @@ from snake_utils import imrotate, plot_snakes, polygon_area, CNN, snake_graph
 from scipy import interpolate
 import scipy
 import time
-from shutil import copyfile
+from shutil import copyfile,rmtree
+from shapely.geometry import Polygon
 
 #print('Waiting...',flush=True)
 #time.sleep(40*60)
@@ -53,7 +54,7 @@ def snake_process (mapE, mapA, mapB, mapK, init_snake):
 
 
 #Load data
-L = 80
+L = 60
 batch_size = 1
 im_size = 384
 out_size = 192
@@ -72,24 +73,6 @@ else:
 
 
 
-###########################################################################################
-#Prepare folder to save network and results
-###########################################################################################
-print('Loading model...',flush=True)
-if not os.path.isdir(results_path):
-    os.makedirs(results_path)
-else:
-    os.rmdir(results_path)
-    os.makedirs(results_path)
-
-start_epoch = 0
-assert os.path.isdir(model_path), 'No model found in the specified directory'
-modelnames = []
-modelnames += [each for each in os.listdir(model_path) if each.endswith('.net')]
-epoch = -1
-for s in modelnames:
-    epoch = max(int(s.split('-')[-1].split('.')[0]),epoch)
-start_epoch = epoch + 1
 
 ###########################################################################################
 # LOAD POLYGON DATA
@@ -181,10 +164,10 @@ def resample_images(inds):
 print('Creating CNN...',flush=True)
 with tf.device('/gpu:0'):
     tvars, grads, predE, predA, predB, predK, l2loss, grad_predE, \
-    grad_predA, grad_predB, grad_predK, grad_l2loss, x, y_ = CNN(im_size, out_size, L, batch_size=1)
+    grad_predA, grad_predB, grad_predK, grad_l2loss, x, y_ = CNN(im_size, out_size, L, batch_size=1,wd=0.01,layers=6)
 
 #Initialize CNN
-optimizer = tf.train.AdamOptimizer(1e-6, epsilon=1e-7)
+optimizer = tf.train.AdamOptimizer(1e-5, epsilon=1e-7)
 apply_gradients = optimizer.apply_gradients(zip(grads, tvars))
 
 ###########################################################################################
@@ -196,6 +179,17 @@ with tf.device('/cpu:0'):
     tf_u, tf_v, tf_du, tf_dv, tf_Du, tf_Dv, tf_u0, tf_v0, tf_du0, tf_dv0, \
     tf_alpha, tf_beta, tf_kappa = snake_graph(out_size, L,niter=niter)
 
+###########################################################################################
+#Prepare folder to save network and results
+###########################################################################################
+print('Loading model...',flush=True)
+if not os.path.isdir(results_path):
+    os.makedirs(results_path)
+else:
+    rmtree(results_path)
+    os.makedirs(results_path)
+
+saver = tf.train.Saver()
 
 
 
@@ -213,6 +207,7 @@ def epoch(n,i,mode):
     thisDWT = np.copy(DWT[:, :, batch_ind[0]])
     # prediction_np = sess.run(prediction,feed_dict={x:batch})
     [mapE, mapA, mapB, mapK, l2] = sess.run([predE, predA, predB, predK, l2loss], feed_dict={x: batch})
+    mapA = np.maximum(mapA, 0)
     mapB = np.maximum(mapB, 0)
     mapK = np.maximum(mapK, 0)
 
@@ -242,15 +237,14 @@ def epoch(n,i,mode):
         #union = (mask_gt + mask_snake) >= 1
         #iou = np.sum(intersection) / np.sum(union)
 
-    #if do_plot and n >=3:
-    #    plot_snakes(snake, snake_hist, thisGT, mapE, np.maximum(mapA, 0), np.maximum(mapB, 0), mapK, \
-    #            grads_arrayE, grads_arrayA, grads_arrayB, grads_arrayK, batch, batch_mask)
-        #plt.show()
+    if do_plot:
+        plot_snakes(snake, snake_hist, None, mapE, mapA, mapB, mapK, \
+                        None, None, None, None, batch, None)
     if do_write_results:
         scipy.misc.imsave(results_path+thisNames,scipy.misc.imresize(mask_snake,[im_size,im_size],interp='nearest'))
-        f = open(base_name+'_polygons.csv', 'a', newline='')
+        f = open(results_path+base_name+'_polygons.csv', 'a', newline='')
         writer = csv.writer(f)
-        writer.writerow([L,snake[-1]])
+        writer.writerow([L,snake.reshape(2*L)])
         f.close()
     return
 
@@ -258,11 +252,14 @@ def epoch(n,i,mode):
 ###########################################################################################
 # RUN THE TESTING
 ###########################################################################################
-with tf.Session(config=tf.ConfigProto(allow_soft_placement=True,log_device_placement=True)) as sess:
-    sess2 = tf.Session(config=tf.ConfigProto(allow_soft_placement=True,log_device_placement=True))
+with tf.Session(config=tf.ConfigProto(allow_soft_placement=True,log_device_placement=False)) as sess:
+    sess2 = tf.Session(config=tf.ConfigProto(allow_soft_placement=True,log_device_placement=False))
     save_path = tf.train.latest_checkpoint(model_path)
     init = tf.global_variables_initializer()
     sess.run(init)
+    saver.restore(sess, save_path)
+    start_epoch = int(save_path.split('-')[-1].split('.')[0]) + 1
+    print('Loading epoch '+str(start_epoch),flush=True)
     start_ind = 0
     total_iter_count = 0
     total_batches = np.int32(np.ceil(total_num / epoch_batch_size))

@@ -192,13 +192,6 @@ print('Preparing model folder...',flush=True)
 start_epoch = 0
 if not os.path.isdir(model_path):
     os.makedirs(model_path)
-else:
-    modelnames = []
-    modelnames += [each for each in os.listdir(model_path) if each.endswith('.net')]
-    epoch = -1
-    for s in modelnames:
-        epoch = max(int(s.split('-')[-1].split('.')[0]),epoch)
-    start_epoch = epoch + 1
 
 # Add ops to save and restore all the variables.
 saver = tf.train.Saver()
@@ -254,11 +247,11 @@ def epoch(n,i,mode):
         der1_GT, der2_GT = derivatives_poly(thisGT)
 
         grads_arrayE = mapE * 0.01
-        grads_arrayA = mapA * 0.1
+        grads_arrayA = mapA * 0.01
         grads_arrayB = mapB * 0.01
         grads_arrayK = mapK * 0.01
         grads_arrayE[:, :, 0, 0] -= draw_poly(snake, 1, [M, N],12) - draw_poly(thisGT, 1, [M, N],12)
-        grads_arrayA[:, :, 0, 0] -= (np.mean(der1) - np.mean(der1_GT))*0.01
+        grads_arrayA[:, :, 0, 0] -= (np.mean(der1) - np.mean(der1_GT))*0.1
         grads_arrayB[:, :, 0, 0] -= (draw_poly(snake, der2, [M, N],12) - draw_poly(thisGT, der2_GT, [M, N],12))
         mask_gt = draw_poly_fill(thisGT, [M, N])
         mask_snake = draw_poly_fill(snake, [M, N])

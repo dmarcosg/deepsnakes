@@ -188,8 +188,11 @@ if not os.path.isdir(results_path):
     os.makedirs(results_path)
 else:
     rmtree(results_path)
-    rmtree(results_path_geojson)
     os.makedirs(results_path)
+if not os.path.isdir(results_path_geojson):
+    os.makedirs(results_path_geojson)
+else:
+    rmtree(results_path_geojson)
     os.makedirs(results_path_geojson)
 
 saver = tf.train.Saver()

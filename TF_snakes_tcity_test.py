@@ -21,9 +21,9 @@ from shapely.affinity import affine_transform
 print('Importing packages... done!',flush=True)
 
 
-do_plot = False
+do_plot = True
 do_write_results = True
-intoronto = True
+intoronto = False
 epoch_batch_size = 1000
 
 def snake_process (mapE, mapA, mapB, mapK, init_snake):

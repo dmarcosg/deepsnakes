@@ -282,7 +282,7 @@ def CNN(im_size,out_size,L,batch_size=1,layers = 5, wd=0.001, numfilt=0):
     h_convd = batch_norm(tf.nn.relu(conv2d(h_concat, W_convd) + b_convd))
 
     #Final conv layer
-    W_convf = weight_variable([1, 1, 32+2*numfilt, 32],wd=wd)
+    W_convf = weight_variable([3, 3, 32+2*numfilt, 32],wd=wd)
     b_convf = bias_variable([32])
     h_convf = batch_norm(tf.nn.relu(conv2d(h_convd, W_convf) + b_convf))
 

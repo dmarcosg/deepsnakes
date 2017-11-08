@@ -36,7 +36,7 @@ end
 
 if training
     ims = dir(fullfile(ims_path,'*_0.png'));
-    gts = dir(fullfile(gt_path,'*_buildings.png'));
+    gts = dir(fullfile(gt_path,'*_instances.png'));
     dwts = dir(fullfile(dwt_path,'*_binary.png'));
 else
     ims = dir(fullfile(ims_path,'*.png'));
@@ -81,8 +81,9 @@ for num = 1:numel(ims)
             continue;
         end
         %building_map = gt(:,:,1)==255 & gt(:,:,2) == 0 & gt(:,:,3) == 0;
-        building_map = gt(:,:,1) > 0;
-        building_map = bwlabel(building_map);
+        %building_map = gt(:,:,1) > 0;
+        %building_map = bwlabel(building_map);
+        building_map = gt;
         stats_gt = regionprops('table',building_map,building_map,'Centroid','BoundingBox','MeanIntensity');
         assert(sum((stats_gt{1:end,'MeanIntensity'}' ~= (1:size(stats_gt,1))))==0);
     end

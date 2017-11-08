@@ -21,7 +21,7 @@ from shapely.affinity import affine_transform
 print('Importing packages... done!',flush=True)
 
 
-do_plot = True
+do_plot = False
 do_write_results = True
 intoronto = True
 epoch_batch_size = 1000

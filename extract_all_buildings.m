@@ -3,7 +3,7 @@ s = 384;
 minsize = 20; % minimum size of the dwt proposal, in pixels
 training = true;
 doplot = false;
-intoronto = true;
+intoronto = false;
 
 if intoronto
     if training
@@ -84,8 +84,8 @@ for num = 1:numel(ims)
         %building_map = gt(:,:,1) > 0;
         %building_map = bwlabel(building_map);
         building_map = gt;
-        stats_gt = regionprops('table',building_map,building_map,'Centroid','BoundingBox','MeanIntensity');
-        assert(sum((stats_gt{1:end,'MeanIntensity'}' ~= (1:size(stats_gt,1))))==0);
+        %stats_gt = regionprops('table',building_map,building_map,'Centroid','BoundingBox','MeanIntensity');
+        %assert(sum((stats_gt{1:end,'MeanIntensity'}' ~= (1:size(stats_gt,1))))==0);
     end
     dwt = bwlabel(dwt);
     stats = regionprops('table',dwt,dwt,'Centroid','BoundingBox','MeanIntensity');
@@ -96,7 +96,7 @@ for num = 1:numel(ims)
         bb = stats{i,'BoundingBox'};
         m = mean(bb(3:4))*margin;
         % skip if too small object
-        if m < minsize
+        if m < minsize 
             continue;
         end
         % get crop around dwt instance

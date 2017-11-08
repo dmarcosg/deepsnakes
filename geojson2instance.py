@@ -3,11 +3,17 @@ from rasterio import features
 import rasterio
 from shapely.geometry import shape
 import png
-
 import os
 
-geojson_path = "/mnt/bighd/Data/TorontoCityTile/"
-output_path = "/mnt/bighd/Data/TorontoCityTile/"
+intoronto = True
+
+if intoronto:
+    geojson_path = "/mnt/bighd/Data/TorontoCityTile/"
+    output_path = "/mnt/bighd/Data/TorontoCityTile/"
+else:
+    geojson_path = "/ais/gobi4/TorontoCity/test/shenlong/improved_gt_train/"
+    output_path = "/ais/gobi4/TorontoCity/test/shenlong/improved_gt_train/"
+
 
 input_postfix = "_buildings"
 ouput_postfix = "_instances"

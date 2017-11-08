@@ -29,12 +29,10 @@ for i in range(len(geojson_names)):
     name = geojson_names[i].split(input_postfix)[0]
     x = float(name.split('_')[0])
     y = float(name.split('_')[1])
-    #t = rasterio.transform.from_bounds(0.10, 0, 0, -0.10, x, y + 500.0)
     t = rasterio.transform.from_bounds(x, y, x+500, y+500, 5000, 5000)
     with open(geojson_path+geojson_names[i]) as f:
         gj = geojson.load(f)
         s = shape(gj)
-        #b = features.rasterize(((g, 255) for g in s), out_shape=[5000, 5000], transform=t)
         val = 0
         pairs = []
         for g in s:

@@ -11,7 +11,9 @@ from scipy import interpolate
 import scipy
 import time
 from shutil import copyfile,rmtree
-from shapely.geometry import Polygon
+from shapely.geometry import Polygon, MultiPolygon, mapping
+import json
+from shapely.affinity import affine_transform
 
 #print('Waiting...',flush=True)
 #time.sleep(40*60)
@@ -19,7 +21,7 @@ from shapely.geometry import Polygon
 print('Importing packages... done!',flush=True)
 
 
-do_plot = True
+do_plot = False
 do_write_results = True
 intoronto = False
 epoch_batch_size = 1000
@@ -64,12 +66,14 @@ if intoronto:
     dwt_path = '/ais/dgx1/marcosdi/TCityBuildings/val_building_crops_dwt/'
     model_path = 'models/tcity_full2/'
     results_path = '/ais/dgx1/marcosdi/TCityBuildings/results2/crops/'
+    results_path_geojson = '/ais/dgx1/marcosdi/TCityBuildings/results2/geojson/'
 else:
     images_path = '/mnt/bighd/Data/TorontoCityTile/building_crops/'
     gt_path = '/mnt/bighd/Data/TorontoCityTile/building_crops_gt/'
     dwt_path = '/mnt/bighd/Data/TorontoCityTile/building_crops_dwt/'
     model_path = 'models/tcity_full1/'
     results_path = '/mnt/bighd/Data/TorontoCityTile/results2/crops/'
+    results_path_geojson = '/mnt/bighd/Data/TorontoCityTile/results2/geojson/'
 
 
 
@@ -91,7 +95,9 @@ DWT = np.zeros([L,2,epoch_batch_size])
 allDWT = np.zeros([L,2,total_num])
 
 all_building_names = []
+all_bounding_boxes = []
 building_names = []
+all_snakes = []
 
 # For each TCity tile, since there's one .csv per tile containing the bounding boxes
 total_count = 0
@@ -100,25 +106,19 @@ for csv_name in csv_names:
     tile_name = csv_name[0:-7]
     print('Reading tile: '+ tile_name,flush=True)
     copyfile(dwt_path + tile_name + '_bb.csv',results_path + tile_name + '_bb.csv')
-    #csvfile_gt = open(gt_path + tile_name + '_polygons.csv', newline='')
-    #reader_gt = csv.reader(csvfile_gt)
+    csvfile_bb = open(dwt_path + tile_name + '_bb.csv', newline='')
+    reader_bb = csv.reader(csvfile_bb)
     csvfile_dwt = open(dwt_path + tile_name + '_polygons.csv', newline='')
     reader_dwt = csv.reader(csvfile_dwt)
     while True:
         try:
-            #corners_gt = reader_gt.__next__()
+            bb = reader_bb.__next__()
             corners_dwt = reader_dwt.__next__()
         except:
             print('Buildings loaded: '+str(i)+', total: '+str(total_count),flush=True)
             break
-        # Get GT polygons
-        #num_points = np.int32(corners_gt[0])
-        #poly = np.zeros([num_points, 2])
-        #for c in range(num_points):
-        #    poly[c, 0] = np.float(corners_gt[1 + 2 * c]) * out_size / im_size
-        #    poly[c, 1] = np.float(corners_gt[2 + 2 * c]) * out_size / im_size
-        #[tck, u] = interpolate.splprep([poly[:, 0], poly[:, 1]], s=2, k=1, per=1)
-        #[allGT[:, 0, total_count], allGT[:, 1, total_count]] = interpolate.splev(np.linspace(0, 1, L), tck)
+        # Get bounding boxes
+        all_bounding_boxes.append(np.int32(bb))
         
         # Get DWT polygons
         num_points = np.int32(corners_dwt[0])
@@ -130,7 +130,7 @@ for csv_name in csv_names:
         [allDWT[:, 0, total_count], allDWT[:, 1, total_count]] = interpolate.splev(np.linspace(0, 1, L), tck)
         if polygon_area(allDWT[:, 0, total_count],allDWT[:, 1, total_count]) < 0:
             allDWT[:, :, total_count] = allDWT[::-1, :, total_count]
-        # Get image and GT mask
+        # Get image
         all_building_names.append(tile_name + '_building_' + str(i + 1).zfill(4) + '.png')
         i += 1
         total_count += 1
@@ -156,6 +156,7 @@ def resample_images(inds):
         #GT[:,:,i] = allGT[:,:,inds[i]]
         DWT[:, :, i] = allDWT[:, :, inds[i]]
         building_names.append(all_building_names[inds[i]])
+        bounding_boxes.append(all_bounding_boxes[inds[i]])
 
 
 ###########################################################################################
@@ -187,7 +188,9 @@ if not os.path.isdir(results_path):
     os.makedirs(results_path)
 else:
     rmtree(results_path)
+    rmtree(results_path_geojson)
     os.makedirs(results_path)
+    os.makedirs(results_path_geojson)
 
 saver = tf.train.Saver()
 
@@ -202,6 +205,7 @@ def epoch(n,i,mode):
     batch = np.float32(images[:, :, :, batch_ind])/255
     #batch_mask = np.copy(masks[:, :, :, batch_ind])
     thisNames = building_names[batch_ind[0]]
+    this_bb = np.copy(bounding_boxes[batch_ind[0]])
     base_name = thisNames.split('_')[0]+'_'+thisNames.split('_')[1]
     #thisGT = np.copy(GT[:, :, batch_ind[0]])
     thisDWT = np.copy(DWT[:, :, batch_ind[0]])
@@ -230,7 +234,7 @@ def epoch(n,i,mode):
         #grads_arrayA[:, :, 0, 0] -= (np.mean(der1) - np.mean(der1_GT))
         #grads_arrayB[:, :, 0, 0] -= (draw_poly(snake, der2, [M, N],12) - draw_poly(thisGT, der2_GT, [M, N],12))
         #mask_gt = draw_poly_fill(thisGT, [M, N])
-        mask_snake = draw_poly_fill(snake, [M, N])
+        #mask_snake = draw_poly_fill(snake, [M, N])
         #grads_arrayK[:, :, 0, 0] -= mask_gt - mask_snake
 
         #intersection = (mask_gt+mask_snake) == 2
@@ -241,17 +245,22 @@ def epoch(n,i,mode):
         plot_snakes(snake, snake_hist, None, mapE, mapA, mapB, mapK, \
                         None, None, None, None, batch, None)
     if do_write_results:
-        scipy.misc.imsave(results_path+thisNames,scipy.misc.imresize(mask_snake,[im_size,im_size],interp='nearest'))
-        f = open(results_path+base_name+'_polygons.csv', 'a', newline='')
-        writer = csv.writer(f)
-        writer.writerow([L,snake.reshape(2*L)])
-        f.close()
+        if all_snakes.__contains__(base_name):
+            all_snakes[base_name]['snakes'].append(np.copy(snake)*im_size/out_size)
+            all_snakes[base_name]['bb'].append(this_bb)
+        else:
+            all_snakes[base_name] = {}
+            all_snakes[base_name]['snakes'] = [np.copy(snake)*im_size/out_size]
+            all_snakes[base_name]['bb'] = [this_bb]
+
     return
 
 
 ###########################################################################################
 # RUN THE TESTING
 ###########################################################################################
+all_polygons = {}
+all_snakes = {}
 with tf.Session(config=tf.ConfigProto(allow_soft_placement=True,log_device_placement=False)) as sess:
     sess2 = tf.Session(config=tf.ConfigProto(allow_soft_placement=True,log_device_placement=False))
     save_path = tf.train.latest_checkpoint(model_path)
@@ -268,6 +277,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True,log_device_place
         inds = np.arange(start_ind,np.minimum(total_num,start_ind+epoch_batch_size))
         start_ind += epoch_batch_size
         building_names = []
+        bounding_boxes = []
         resample_images(inds)
 
         iter_count = 0
@@ -279,8 +289,36 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True,log_device_place
             print('Test. Batch ' + str(n) + '. Iter ' + str(total_iter_count) + '/' + str(total_num),flush=True)
 
 
+for name in all_snakes.keys():
+    all_polygons = []
+    for count in range(len(all_snakes[name]['snakes'])):
+        snake = np.copy(all_snakes[name]['snakes'][count]) / im_size
+        this_bb = np.copy(all_snakes[name]['bb'][count])
+        snake_as_tuples = []
+        for i in range(snake.shape[0]):
+            snake_as_tuples.append((snake[i, 1]*this_bb[2] , snake[i, 0]*this_bb[3]))
+        all_polygons.append(Polygon(snake_as_tuples).buffer(0))
+        xcoord = np.float32(name.split('_')[0])
+        ycoord = np.float32(name.split('_')[1])
+        all_polygons[count] = affine_transform(all_polygons[count],
+                                       [0.10, 0, 0, -0.10, xcoord + this_bb[0] / 10, ycoord - this_bb[1] / 10 + 500.0])
+
+    polygons = MultiPolygon(all_polygons)
+    with open(results_path_geojson+name+'.geojson', 'w') as gj:
+        json.dump(mapping(polygons), gj)
+    print(name)
 
 
+
+
+# v, u = polygon.exterior.xy
+# new_snake = np.stack([np.array(u), np.array(v)]).T
+# mask_snake = draw_poly_fill(new_snake, [im_size, im_size])
+# scipy.misc.imsave(results_path+thisNames,scipy.misc.imresize(mask_snake,[im_size,im_size],interp='nearest'))
+# f = open(results_path + name + '_polygons.csv', 'a', newline='')
+# writer = csv.writer(f)
+# writer.writerow([len(new_snake), new_snake.reshape(2 * len(new_snake))])
+# f.close()
 
 
 

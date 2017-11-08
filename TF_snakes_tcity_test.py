@@ -64,14 +64,14 @@ if intoronto:
     images_path = '/ais/dgx1/marcosdi/TCityBuildings/val_building_crops/'
     #gt_path = '/ais/dgx1/marcosdi/TCityBuildings/building_crops_gt/'
     dwt_path = '/ais/dgx1/marcosdi/TCityBuildings/val_building_crops_dwt/'
-    model_path = 'models/tcity_full2/'
-    results_path = '/ais/dgx1/marcosdi/TCityBuildings/results2/crops/'
-    results_path_geojson = '/ais/dgx1/marcosdi/TCityBuildings/results2/geojson/'
+    model_path = 'models/tcity_full3/'
+    results_path = '/ais/dgx1/marcosdi/TCityBuildings/results3/crops/'
+    results_path_geojson = '/ais/dgx1/marcosdi/TCityBuildings/results3/geojson/'
 else:
     images_path = '/mnt/bighd/Data/TorontoCityTile/building_crops/'
     gt_path = '/mnt/bighd/Data/TorontoCityTile/building_crops_gt/'
     dwt_path = '/mnt/bighd/Data/TorontoCityTile/building_crops_dwt/'
-    model_path = 'models/tcity_full1/'
+    model_path = 'models/tcity_full3/'
     results_path = '/mnt/bighd/Data/TorontoCityTile/results2/crops/'
     results_path_geojson = '/mnt/bighd/Data/TorontoCityTile/results2/geojson/'
 

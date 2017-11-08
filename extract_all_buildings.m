@@ -10,7 +10,7 @@ if intoronto
         % Where to get the images from
         ims_path = '/ais/gobi4/justinliang/reconstruction/data/rotated_training_images/Images_RGB';
         %gt_path = '/ais/gobi4/justinliang/reconstruction/data/rotated_training_images/Labels';
-        gt_path = '/ais/gobi4/TorontoCity/test/shenlong/improved_gt_train';
+        gt_path = '/ais/dgx1/marcosdi/improved_gt_train';
         dwt_path = '/ais/gobi4/TorontoCity/test/min/aerial_instances/joint_alignment_12_output/train';
         % Where to store the cropped out buildings
         crops_path = '/ais/dgx1/marcosdi/TCityBuildings_improved/building_crops';

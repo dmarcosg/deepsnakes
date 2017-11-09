@@ -71,14 +71,21 @@ for num = 1:numel(ims)
     % read images and get instances
     try
         im = imread(fullfile(ims_path,ims(num).name));
+    catch
+        print(['Couldnt read ',fullfile(ims_path,ims(num).name)]);
+        continue;
+    end
+    try
         dwt = imread(fullfile(dwt_path,dwts(num).name));
     catch
+        print(['Couldnt read ',fullfile(dwt_path,dwts(num).name)]);
         continue;
     end
     if training
         try
             gt = imread(fullfile(gt_path,gts(num).name));
         catch
+            print(['Couldnt read ',fullfile(gt_path,gts(num).name)]);
             continue;
         end
         %building_map = gt(:,:,1)==255 & gt(:,:,2) == 0 & gt(:,:,3) == 0;

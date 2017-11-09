@@ -40,7 +40,7 @@ if training
     dwts = dir(fullfile(dwt_path,'*_binary.png'));
 else
     ims = dir(fullfile(ims_path,'*.png'));
-    dwts = dir(fullfile(dwt_path,'_binary.png'));
+    dwts = dir(fullfile(dwt_path,'*_binary.png'));
 end
 
 try

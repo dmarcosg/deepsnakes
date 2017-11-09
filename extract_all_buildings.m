@@ -57,6 +57,7 @@ end
 
 
 for num = 1:numel(ims)
+    disp(['Image ',num2str(num),'/',num2str(numel(ims)),'...']);
     data_gt = [];
     data_dwt = [];
     bounding_boxes = [];
@@ -180,7 +181,7 @@ for num = 1:numel(ims)
         end
         count = count + 1;
     end
-    disp(['Image ',num2str(num),'/',num2str(numel(ims))]);
+    disp(['Image ',num2str(num),'/',num2str(numel(ims)),' done.']);
     csvwrite(fullfile(crops_dwt_path,[imname,'_polygons.csv']),data_dwt);
     csvwrite(fullfile(crops_dwt_path,[imname,'_bb.csv']),bounding_boxes);
     csvwrite(fullfile(crops_path,[imname,'_bb.csv']),bounding_boxes);

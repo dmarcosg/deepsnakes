@@ -21,9 +21,9 @@ from shapely.affinity import affine_transform
 print('Importing packages... done!',flush=True)
 
 
-do_plot = True
-do_write_results = False
-intoronto = False
+do_plot = False
+do_write_results = True
+intoronto = True
 epoch_batch_size = 1000
 
 def snake_process (mapE, mapA, mapB, mapK, init_snake):
@@ -66,15 +66,15 @@ if intoronto:
     #gt_path = '/ais/dgx1/marcosdi/TCityBuildings/building_crops_gt/'
     dwt_path = '/ais/dgx1/marcosdi/TCityBuildings/val_building_crops_dwt/'
     model_path = 'models/tcity_fullB1/'
-    results_path = '/ais/dgx1/marcosdi/results4/crops/'
-    results_path_geojson = '/ais/dgx1/marcosdi/results4/geojson/'
+    results_path = '/ais/dgx1/marcosdi/resultsB1/crops/'
+    results_path_geojson = '/ais/dgx1/marcosdi/resultsB1/geojson/'
 else:
     images_path = '/mnt/bighd/Data/TorontoCityTile/building_crops/'
     gt_path = '/mnt/bighd/Data/TorontoCityTile/building_crops_gt/'
     dwt_path = '/mnt/bighd/Data/TorontoCityTile/building_crops_dwt/'
     model_path = 'models/tcity_fullB1/'
-    results_path = '/mnt/bighd/Data/TorontoCityTile/results4/crops/'
-    results_path_geojson = '/mnt/bighd/Data/TorontoCityTile/results4/geojson/'
+    results_path = '/mnt/bighd/Data/TorontoCityTile/resultsB1/crops/'
+    results_path_geojson = '/mnt/bighd/Data/TorontoCityTile/resultsB1/geojson/'
 
 
 
@@ -190,11 +190,18 @@ if not os.path.isdir(results_path):
 else:
     rmtree(results_path)
     os.makedirs(results_path)
+
 if not os.path.isdir(results_path_geojson):
     os.makedirs(results_path_geojson)
 else:
     rmtree(results_path_geojson)
     os.makedirs(results_path_geojson)
+
+if not os.path.isdir(results_path_geojson+'init/'):
+    os.makedirs(results_path_geojson+'init/')
+else:
+    rmtree(results_path_geojson+'init/')
+    os.makedirs(results_path_geojson+'init/')
 
 saver = tf.train.Saver()
 
@@ -323,7 +330,7 @@ for name in all_snakes.keys():
     inits = MultiPolygon(all_inits)
     with open(results_path_geojson+name+'_snakes.geojson', 'w') as gj:
         json.dump(mapping(polygons), gj)
-    with open(results_path_geojson+name+'_init.geojson', 'w') as gj:
+    with open(results_path_geojson+'init/'+name+'_init.geojson', 'w') as gj:
         json.dump(mapping(inits), gj)
     print(name)
 

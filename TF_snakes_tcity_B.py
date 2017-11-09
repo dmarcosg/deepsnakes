@@ -17,10 +17,10 @@ import time
 print('Importing packages... done!',flush=True)
 
 model_path = 'models/tcity_fullB1/'
-do_plot = True
+do_plot = False
 only_test = False
-intoronto = False
-epoch_batch_size = 100
+intoronto = True
+epoch_batch_size = 1000
 val_proportion = 0.2
 
 def snake_process (mapE, mapA, mapB, mapK, init_snake):

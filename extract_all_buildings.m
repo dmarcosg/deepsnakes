@@ -89,12 +89,13 @@ for num = 1:numel(ims)
             disp(['Couldnt read ',fullfile(gt_path,gts(num).name)]);
             continue;
         end
-        if size(gt,3) == 3
+        if size(gt,3) > 1
             building_map = gt(:,:,1)==255 & gt(:,:,2) == 0 & gt(:,:,3) == 0;
             building_map = gt(:,:,1) > 0;
             building_map = bwlabel(building_map);
+        else
+            building_map = gt;
         end
-        building_map = gt;
         %stats_gt = regionprops('table',building_map,building_map,'Centroid','BoundingBox','MeanIntensity');
         %assert(sum((stats_gt{1:end,'MeanIntensity'}' ~= (1:size(stats_gt,1))))==0);
     end

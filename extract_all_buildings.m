@@ -37,7 +37,7 @@ end
 if training
     ims = dir(fullfile(ims_path,'*_0.png'));
     gts = dir(fullfile(gt_path,'*_instances.png'));
-    gts = [gts,dir(fullfile(gt_path,'*_labels.png'))];
+    gts = [gts,dir(fullfile(gt_path,'*_0_labels.png'))];
     dwts = dir(fullfile(dwt_path,'*_binary.png'));
 else
     ims = dir(fullfile(ims_path,'*.png'));

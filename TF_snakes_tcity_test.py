@@ -64,9 +64,9 @@ if intoronto:
     images_path = '/ais/dgx1/marcosdi/TCityBuildings/val_building_crops/'
     #gt_path = '/ais/dgx1/marcosdi/TCityBuildings/building_crops_gt/'
     dwt_path = '/ais/dgx1/marcosdi/TCityBuildings/val_building_crops_dwt/'
-    model_path = 'models/tcity_full3/'
-    results_path = '/ais/dgx1/marcosdi/results3/crops/'
-    results_path_geojson = '/ais/dgx1/marcosdi/results3/geojson/'
+    model_path = 'models/tcity_full4/'
+    results_path = '/ais/dgx1/marcosdi/results4/crops/'
+    results_path_geojson = '/ais/dgx1/marcosdi/results4/geojson/'
 else:
     images_path = '/mnt/bighd/Data/TorontoCityTile/building_crops/'
     gt_path = '/mnt/bighd/Data/TorontoCityTile/building_crops_gt/'
@@ -165,7 +165,7 @@ def resample_images(inds):
 print('Creating CNN...',flush=True)
 with tf.device('/gpu:0'):
     tvars, grads, predE, predA, predB, predK, l2loss, grad_predE, \
-    grad_predA, grad_predB, grad_predK, grad_l2loss, x, y_ = CNN(im_size, out_size, L, batch_size=1,wd=0.01,layers=6)
+    grad_predA, grad_predB, grad_predK, grad_l2loss, x, y_ = CNN(im_size, out_size, L, batch_size=1,wd=0.01,layers=6,numfilt=16)
 
 #Initialize CNN
 optimizer = tf.train.AdamOptimizer(1e-5, epsilon=1e-7)

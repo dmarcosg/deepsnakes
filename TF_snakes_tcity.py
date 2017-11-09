@@ -142,7 +142,7 @@ all_relative_sizes = np.int32(np.ceil(all_relative_sizes))
 weighted_inds = []
 for i in range(total_num):
     mult = np.maximum(1,all_relative_sizes[i]-5)
-    weighted_inds.append(np.ones([mult],dtype=np.int32)*i)
+    weighted_inds.append(np.int32(np.ones([mult])*mult*np.sqrt(mult)))
 weighted_inds = np.concatenate(weighted_inds)
 
 

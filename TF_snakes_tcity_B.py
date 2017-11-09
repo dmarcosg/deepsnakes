@@ -17,10 +17,10 @@ import time
 print('Importing packages... done!',flush=True)
 
 model_path = 'models/tcity_fullB1/'
-do_plot = False
+do_plot = True
 only_test = False
-intoronto = True
-epoch_batch_size = 1000
+intoronto = False
+epoch_batch_size = 100
 val_proportion = 0.2
 
 def snake_process (mapE, mapA, mapB, mapK, init_snake):
@@ -272,7 +272,7 @@ def epoch(n,i,mode):
         #print('IoU = %.2f' % (iou))
     #if mode is 'test':
         #print('IoU = %.2f' % (iou))
-    if do_plot and n >=1:
+    if do_plot and n >=0:
         plot_snakes(snake, snake_hist, thisGT, mapE, np.maximum(mapA, 0), np.maximum(mapB, 0), mapK, \
                 grads_arrayE, grads_arrayA, grads_arrayB, grads_arrayK, batch, batch_mask)
         #plt.show()

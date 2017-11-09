@@ -105,6 +105,8 @@ for num = 1:numel(ims)
         bb(4) = min(size(im,2),bb(2)+bb(4))-bb(2);
         bb(1) = max(1,bb(1));
         bb(2) = max(1,bb(2));
+        bb(3) = min(size(im,1),bb(3));
+        bb(4) = min(size(im,2),bb(4));
         
         crop_dwt = imcrop(dwt,bb);
         

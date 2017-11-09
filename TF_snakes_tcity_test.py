@@ -71,9 +71,9 @@ else:
     images_path = '/mnt/bighd/Data/TorontoCityTile/building_crops/'
     gt_path = '/mnt/bighd/Data/TorontoCityTile/building_crops_gt/'
     dwt_path = '/mnt/bighd/Data/TorontoCityTile/building_crops_dwt/'
-    model_path = 'models/tcity_full3/'
-    results_path = '/mnt/bighd/Data/TorontoCityTile/results2/crops/'
-    results_path_geojson = '/mnt/bighd/Data/TorontoCityTile/results2/geojson/'
+    model_path = 'models/tcity_full4/'
+    results_path = '/mnt/bighd/Data/TorontoCityTile/results4/crops/'
+    results_path_geojson = '/mnt/bighd/Data/TorontoCityTile/results4/geojson/'
 
 
 

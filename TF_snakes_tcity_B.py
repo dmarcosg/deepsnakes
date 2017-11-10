@@ -139,6 +139,7 @@ allDWT = np.maximum(allDWT,0)
 
 all_relative_sizes = np.stack(all_building_sizes) / min(np.stack(all_building_sizes))
 all_relative_sizes = np.int32(np.ceil(all_relative_sizes))
+print('Max rel. size = '+str(max(all_relative_sizes)))
 weighted_inds = []
 for i in range(total_num):
     mult = np.maximum(1,all_relative_sizes[i]-5)

@@ -176,7 +176,7 @@ with tf.device('/gpu:0'):
                                                                  batch_size=1,wd=0.01,layers=len(numfilt),numfilt=numfilt)
 
 #Initialize CNN
-optimizer = tf.train.AdamOptimizer(1e-5, epsilon=1e-7)
+optimizer = tf.train.AdamOptimizer(1e-6, epsilon=1e-7)
 apply_gradients = optimizer.apply_gradients(zip(grads, tvars))
 
 ###########################################################################################

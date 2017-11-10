@@ -143,7 +143,7 @@ print('Max rel. size = '+str(max(all_relative_sizes)))
 weighted_inds = []
 for i in range(total_num):
     mult = np.maximum(1,all_relative_sizes[i]-5)
-    mult = int(mult*np.sqrt(mult))
+    mult = int(mult*np.log(np.e+mult))
     weighted_inds.append(np.int32(np.ones([mult])*i))
 weighted_inds = np.concatenate(weighted_inds)
 

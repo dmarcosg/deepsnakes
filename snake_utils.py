@@ -215,6 +215,55 @@ def plot_snakes(snake,snake_hist,GT,mapE, mapA, mapB, mapK, grads_arrayE, grads_
 
     plt.show()
 
+def plot_for_figure(snake, snake_hist, GT, mapE, mapA, mapB, mapK, grads_arrayE, grads_arrayA, grads_arrayB,
+                    grads_arrayK, image, mask):
+    # Plot result
+    fig0, (ax) = plt.subplots(ncols=4, nrows=2)
+    im = ax[0,0].imshow(scipy.misc.imresize(np.abs(image[:, :, :, 0]), mapE[:, :, 0, 0].shape))
+
+    im1 = ax[0, 1].imshow(scipy.misc.imresize(np.abs(image[:, :, :, 0])*0+255, mapE[:, :, 0, 0].shape))
+    ax[0,1].plot(snake_hist[0][:, 1], snake_hist[0][:, 0], '--', color=[0.6, 0.2, 0], lw=3)
+
+
+    im2 = ax[0, 2].imshow(scipy.misc.imresize(np.abs(image[:, :, :, 0]) * 0 + 255, mapE[:, :, 0, 0].shape))
+    ax[0,2].plot(snake_hist[1][:, 1], snake_hist[1][:, 0], '--', color=[0, 0, 0.5], lw=3)
+
+
+    im3 = ax[0, 3].imshow(scipy.misc.imresize(np.abs(image[:, :, :, 0]) * 0 + 255, mapE[:, :, 0, 0].shape))
+    ax[0,3].plot(GT[:, 1], GT[:, 0], '--', color=[0.2, 1, 0.2], lw=3)
+
+    # ax[0].plot(snake[:, 1], snake[:, 0], '--b', lw=3)
+    # ax[0].axis('off')
+    # ax[0].set_title(r'a) image $\mathbf{x}$', y=-0.2)
+    # plt.colorbar(im, ax=ax[0], fraction=0.046, pad=0.04).remove()
+
+    # plt.colorbar(im, ax=ax)
+    # fig0.suptitle('Image, GT (red) and converged snake (black)', fontsize=20)
+
+    im0 = ax[1,0].imshow(mapE[:, :, 0, 0])
+    # plt.colorbar(im0, ax=ax[4],fraction=0.046, pad=0.04)
+    # ax[1].axis('off')
+    # ax[1].set_title(r'b) data term $D(\mathbf{x})$', y=-0.2)
+
+    im1 = ax[1,1].imshow(mapK[:, :, 0, 0])
+    # plt.colorbar(im1, ax=ax[5],fraction=0.046, pad=0.04)
+    # ax[2].axis('off')
+    # ax[2].set_title(r'c) balloon term $\kappa(\mathbf{x})$', y=-0.2)
+    im2 = ax[1,2].imshow(mapB[:, :, 0, 0])
+    # plt.colorbar(im2, ax=ax[3],fraction=0.046, pad=0.04)
+    # ax[6].axis('off')
+    # ax[6].set_title(r'd) thin plate term $ \beta(\mathbf{x})$', y=-0.2)
+
+    im3 = ax[1,3].imshow(mapA[:, :, 0, 0])
+    # plt.colorbar(im3, ax=ax[7], fraction=0.046, pad=0.04)
+    # ax[7].axis('off')
+    # ax[7].set_title(r'd) membrane term $ \alpha(\mathbf{x})$', y=-0.2)
+    for i in range(4):
+        ax[0,i].axis('off')
+        ax[1, i].axis('off')
+
+    plt.show()
+
 def weight_variable(shape,wd=0.0):
     initial = tf.truncated_normal(shape, stddev=0.1)
     var = tf.Variable(initial)
@@ -325,7 +374,7 @@ def CNN(im_size,out_size,L,batch_size=1,layers = 5, wd=0.001, numfilt=0):
 
     return tvars,grads,predE, predA, predB, predK, l2loss, grad_predE, grad_predA, grad_predB, grad_predK, grad_l2loss, x,y_
 
-def CNN_B(im_size,out_size,L,batch_size=1,layers = 5, wd=0.001, numfilt=None):
+def CNN_B(im_size,out_size,L,batch_size=1,layers = 5, wd=0.001, numfilt=None, E_blur=2,stack_from=2):
 
     if numfilt is None:
         numfilt = np.ones(layers,dtype=np.int32)*32
@@ -343,6 +392,7 @@ def CNN_B(im_size,out_size,L,batch_size=1,layers = 5, wd=0.001, numfilt=None):
     b_conv.append(bias_variable([numfilt[0]]))
     h_conv.append(tf.nn.relu(conv2d(x_image, W_conv[-1],padding='SAME') + b_conv[-1]))
     h_pool.append(batch_norm(max_pool_2x2(h_conv[-1])))
+
     for layer in range(1,layers):
         if layer == 1:
             W_conv.append(weight_variable([5, 5, numfilt[layer-1], numfilt[layer]],wd=wd))
@@ -351,7 +401,7 @@ def CNN_B(im_size,out_size,L,batch_size=1,layers = 5, wd=0.001, numfilt=None):
         b_conv.append(bias_variable([numfilt[layer]]))
         h_conv.append(tf.nn.relu(conv2d(h_pool[-1], W_conv[-1],padding='SAME') + b_conv[-1]))
         h_pool.append(batch_norm(max_pool_2x2(h_conv[-1])))
-        if layer >= 2:
+        if layer >= stack_from:
             resized_out.append(tf.image.resize_images(h_conv[-1], [out_size, out_size]))
 
     h_concat = tf.concat(resized_out,3)
@@ -370,7 +420,7 @@ def CNN_B(im_size,out_size,L,batch_size=1,layers = 5, wd=0.001, numfilt=None):
     W_fcE = weight_variable([1, 1, 64, 1],wd=wd)
     b_fcE = bias_variable([1])
     h_fcE = conv2d(h_convf, W_fcE) + b_fcE
-    G_filt = gaussian_filter((9,9), 2)
+    G_filt = gaussian_filter((9,9), E_blur)
     predE = tf.reshape(conv2d(h_fcE,G_filt), [out_size, out_size, 1, -1])
 
     # Predict alpha

@@ -10,6 +10,7 @@ from skimage.filters import gaussian
 import scipy
 import time
 
+
 model_path = 'models/bing1/'
 do_plot = True
 train_ims = 400

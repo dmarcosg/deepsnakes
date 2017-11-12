@@ -3,7 +3,7 @@ s = 384;
 minsize = 20; % minimum size of the dwt proposal, in pixels
 training = false;
 doplot = false;
-do_dilate_init = true;
+do_dilate_init = false;
 intoronto = true;
 
 if do_dilate_init > 0

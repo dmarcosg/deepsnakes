@@ -18,7 +18,7 @@ print('Importing packages... done!',flush=True)
 
 model_path = 'models/tcity_fullB1/'
 do_plot = False
-only_test = False
+only_test = True
 intoronto = True
 epoch_batch_size = 1000
 val_proportion = 0.2
@@ -61,11 +61,11 @@ out_size = 192
 if intoronto:
     images_path = '/ais/dgx1/marcosdi/TCityBuildings_improved/building_crops/'
     gt_path = '/ais/dgx1/marcosdi/TCityBuildings_improved/building_crops_gt/'
-    dwt_path = '/ais/dgx1/marcosdi/TCityBuildings_improved/building_crops_dwt/'
+    dwt_path = '/ais/dgx1/marcosdi/TCityBuildings_improved/building_crops_dwt_dilate/'
 else:
     images_path = '/mnt/bighd/Data/TorontoCityTile/building_crops/'
     gt_path = '/mnt/bighd/Data/TorontoCityTile/building_crops_gt/'
-    dwt_path = '/mnt/bighd/Data/TorontoCityTile/building_crops_dwt/'
+    dwt_path = '/mnt/bighd/Data/TorontoCityTile/building_crops_dwt_dilate/'
 
 ###########################################################################################
 # LOAD POLYGON DATA

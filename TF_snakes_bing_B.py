@@ -64,14 +64,14 @@ for i in range(num_ims):
     poly = np.zeros([5, 2])
     corners = reader.__next__()
     for c in range(4):
-        poly[c, 1] = np.float(corners[1+2*c])
-        poly[c, 0] = np.float(corners[2+2*c])
+        poly[c, 0] = np.float(corners[1+2*c])
+        poly[c, 1] = np.float(corners[2+2*c])
     poly[4,:] = poly[0,:]
     [tck, u] = interpolate.splprep([poly[:, 0], poly[:, 1]], s=2, k=1, per=1)
     [GT[:,0,i], GT[:,1,i]] = interpolate.splev(np.linspace(0, 1, L), tck)
-    this_im  = scipy.misc.imread(data_path+'building_'+str(i)+'.png')
+    this_im  = scipy.misc.imread(data_path+'building_'+str(i).zfill(3)+'.png')
     images[:,:,:,i] = np.float32(this_im)/255
-    img_mask = scipy.misc.imread(data_path+'building_mask_' + str(i) + '.png')/65535
+    img_mask = scipy.misc.imread(data_path+'building_mask_' + str(i).zfill(3) + '.png')/65535
     masks[:,:,0,i] = img_mask
     img_dist = scipy.ndimage.morphology.distance_transform_edt(img_mask) + \
                scipy.ndimage.morphology.distance_transform_edt(1 - img_mask)
@@ -109,13 +109,11 @@ with tf.device('/cpu:0'):
 start_epoch = 0
 if not os.path.isdir(model_path):
     os.makedirs(model_path)
-else:
-    modelnames = []
-    modelnames += [each for each in os.listdir(model_path) if each.endswith('.net')]
-    epoch = -1
-    for s in modelnames:
-        epoch = max(int(s.split('-')[-1].split('.')[0]),epoch)
-    start_epoch = epoch + 1
+
+if not do_train and not os.path.isdir(model_path+'results'):
+    os.makedirs(model_path+'results')
+elif os.path.isdir(model_path+'results/polygons.csv'):
+    os.remove(model_path+'results/polygons.csv')
 
 # Add ops to save and restore all the variables.
 saver = tf.train.Saver()
@@ -198,7 +196,7 @@ def epoch(n,i,mode):
         plot_snakes(snake, snake_hist, thisGT, mapE, np.maximum(mapA, 0), np.maximum(mapB, 0), mapK, \
                 grads_arrayE, grads_arrayA, grads_arrayB, grads_arrayK, batch, batch_mask)
         #plt.show()
-    return iou,area_gt,area_snake
+    return iou,area_gt,area_snake,snake
 
 
 ###########################################################################################
@@ -217,6 +215,9 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True,log_device_place
         end_epoch = 100
     else:
         end_epoch = start_epoch + 1
+        polygons_csvfile = open(model_path + 'results/' 'polygons.csv', 'a', newline='')
+        polygons_writer = csv.writer(polygons_csvfile)
+
     for n in range(start_epoch,end_epoch):
         iou_test = 0
         iou_train = 0
@@ -225,7 +226,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True,log_device_place
             for i in range(0,num_ims,batch_size):
                 #print(i)
                 #Do CNN inference
-                new_iou, new_area_gt, new_area_snake = epoch(n,i,'train')
+                new_iou, new_area_gt, new_area_snake, snake = epoch(n,i,'train')
                 iou_train += new_iou
                 iter_count += 1
                 print('Train. Epoch ' + str(n) + '. Iter ' + str(iter_count) + '/' + str(num_ims) + ', IoU = %.2f' % (
@@ -237,7 +238,12 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True,log_device_place
         areas_gt = []
         areas_snake = []
         for i in range(num_ims):
-            new_iou, new_area_gt, new_area_snake = epoch(n,i, 'test')
+            new_iou, new_area_gt, new_area_snake, snake = epoch(n,i, 'test')
+            list_to_write = [len(snake)]
+            snake = np.reshape(snake, 2 * len(snake)).tolist()
+            for el in snake:
+                list_to_write.append(el)
+            polygons_writer.writerow(list_to_write)
             areas_gt.append(new_area_gt)
             areas_snake.append(new_area_snake)
             iou_test += new_iou
@@ -254,6 +260,7 @@ with tf.Session(config=tf.ConfigProto(allow_soft_placement=True,log_device_place
         iou_writer = csv.writer(iou_csvfile)
         iou_writer.writerow([n,iou_train,iou_test])
         iou_csvfile.close()
+        polygons_csvfile.close()
 
 
 

@@ -75,7 +75,7 @@ building_mask = np.zeros([num_ims,out_size,out_size,1])
 for i in range(num_ims):
     this_im  = scipy.misc.imread(data_path+'building_'+str(i)+'.png')
     images[i,:,:,:] = np.float32(this_im)/255
-    img_mask = scipy.misc.imread(data_path+'building_mask_all_' + str(i) + '.png')/255
+    img_mask = scipy.misc.imread(data_path+'building_mask_all_' + str(i).zfill(3) + '.png')/255
     edge = skimage.morphology.binary_dilation(img_mask)-img_mask
     edge = np.float32(edge)
     onehot_labels[i,:,:,0] = scipy.misc.imresize(1-img_mask-edge,[out_size,out_size],interp='nearest')/255
@@ -83,7 +83,7 @@ for i in range(num_ims):
     onehot_labels[i,:,:,2] = scipy.misc.imresize(edge,[out_size,out_size],interp='nearest')/255
 
     building_mask[i,:,:,0] = scipy.misc.imresize(scipy.misc.imread(
-        data_path + 'building_mask_' + str(i) + '.png'),[out_size,out_size],interp='nearest') / (255)
+        data_path + 'building_mask_' + str(i).zfill(3) + '.png'),[out_size,out_size],interp='nearest') / (255)
 
 numfilt = [32,64,128,128]
 layers = len(numfilt)

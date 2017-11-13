@@ -146,10 +146,10 @@ def plot_snakes(snake,snake_hist,GT,mapE, mapA, mapB, mapK, grads_arrayE, grads_
     fig0, (ax) = plt.subplots(ncols=5,nrows=1)
     im = ax[0].imshow(scipy.misc.imresize(np.abs(image[:,:,:,0]),mapE[:, :, 0, 0].shape))
     for i in range(0,len(snake_hist),5):
-        ax[0].plot(snake_hist[i][:, 1], snake_hist[i][:, 0], '--', color=[1-i / len(snake_hist), 1-i / len(snake_hist), i / len(snake_hist)], lw=3)
+        ax[0].plot(snake_hist[i][:, 1], snake_hist[i][:, 0], '-.', color=[i / len(snake_hist), i / len(snake_hist), 1-i / len(snake_hist)], lw=3)
     if not GT is None:
-        ax[0].plot(GT[:, 1], GT[:, 0], '--', color=[0.2, 1, 0.2], lw=3)
-    ax[0].plot(snake[:, 1], snake[:, 0], '--b', lw=3)
+        ax[0].plot(GT[:, 1], GT[:, 0], '-', color=[0.2, 1, 0.2], lw=3)
+    ax[0].plot(snake[:, 1], snake[:, 0], '--', lw=3,color=[1,1,0])
     ax[0].axis('off')
     ax[0].set_title(r'a) image $\mathbf{x}$', y=-0.2)
     plt.colorbar(im, ax=ax[0], fraction=0.046, pad=0.04).remove()

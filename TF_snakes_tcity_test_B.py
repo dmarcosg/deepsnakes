@@ -23,7 +23,7 @@ print('Importing packages... done!',flush=True)
 
 do_plot = False
 do_write_results = True
-intoronto = True
+intoronto = False
 epoch_batch_size = 1000
 
 def snake_process (mapE, mapA, mapB, mapK, init_snake):
@@ -65,14 +65,14 @@ if intoronto:
     images_path = '/ais/dgx1/marcosdi/TCityBuildings/val_building_crops/'
     #gt_path = '/ais/dgx1/marcosdi/TCityBuildings/building_crops_gt/'
     dwt_path = '/ais/dgx1/marcosdi/TCityBuildings/val_building_crops_dwt/'
-    model_path = 'models/tcity_fullB1/'
+    model_path = 'models/tcity_fullB1_dilated/'
     results_path = '/ais/dgx1/marcosdi/resultsB1/crops/'
     results_path_geojson = '/ais/dgx1/marcosdi/resultsB1/geojson/'
 else:
     images_path = '/mnt/bighd/Data/TorontoCityTile/building_crops/'
     gt_path = '/mnt/bighd/Data/TorontoCityTile/building_crops_gt/'
-    dwt_path = '/mnt/bighd/Data/TorontoCityTile/building_crops_dwt/'
-    model_path = 'models/tcity_fullB1/'
+    dwt_path = '/mnt/bighd/Data/TorontoCityTile/building_crops_dwt_dilated/'
+    model_path = 'models/tcity_B1_dilated/'
     results_path = '/mnt/bighd/Data/TorontoCityTile/resultsB1/crops/'
     results_path_geojson = '/mnt/bighd/Data/TorontoCityTile/resultsB1/geojson/'
 

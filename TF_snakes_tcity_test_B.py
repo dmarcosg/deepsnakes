@@ -23,7 +23,7 @@ print('Importing packages... done!',flush=True)
 
 do_plot = False
 do_write_results = True
-intoronto = False
+intoronto = True
 epoch_batch_size = 1000
 
 def snake_process (mapE, mapA, mapB, mapK, init_snake):

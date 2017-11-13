@@ -7,8 +7,8 @@ do_dilate_init = false;
 intoronto = true;
 
 if do_dilate_init > 0
-    strel = fspecial('disk',4);
-    strel = strel / max(strel(:)) > 0.3;
+    strel = fspecial('disk',9);
+    strel = strel / max(strel(:)) > 0.0;
 end
 
 if intoronto
